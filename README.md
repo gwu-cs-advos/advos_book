@@ -11,9 +11,16 @@ This is necessary for two reasons:
 Please do PRs to fix up the text and add to it!
 Add yourself to the contributors when you do.
 
+## View on Github
+
+See the [table of contents](./toc.md).
+A lot of the rendering of encapsulated latex is not supported by github, so I'd highly recommend building the pdf.
+
+## View the pdf
+
 Build the book:
 
 1. Install `pandoc`and `latex` (e.g. `apt-get install pandoc texlive texlive-latex-extra`),
 2. `./build.sh`
 
-I have no idea if this will work on non-Linux systems.
+This should generate `gwu_aos.pdf`. I have no idea if this will work on non-Linux systems.
