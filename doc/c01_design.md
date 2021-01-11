@@ -71,7 +71,7 @@ Breadth-first search fails for similar reasons.
 	This might be a reasonable algorithm only in a hypothetical (impossible) code base that has perfect naming, thus descending into functions isn't necessary.
 2. Without the ability to go *back* to a function after seeing some of the functions it calls means that you often can't remember the impacts that functions make on the surrounding code.
 
-![Left: a graphical depiction of our relationship to code. All of the orange is *unknown*, and the red is *understanding*. At the start, we only understand the surface-level elements of the code-base, for example the design. Right: a DFS generates what is essentially a random walk through the code-base. The "spaghetti-like" representation of that walk emphasizes that this will not provide a cohesive understanding of targeted questions.](resources/dfs)
+![Left: a graphical depiction of our relationship to code. All of the orange is *unknown*, and the red is *understanding*. At the start, we only understand the surface-level elements of the code-base, for example the design. Right: a DFS generates what is essentially a random walk through the code-base. The "spaghetti-like" representation of that walk emphasizes that this will not provide a cohesive understanding of targeted questions.](resources/dfs.pdf)
 
 **Scientific method for reading code.**
 It may sound strange to use an approach similar to the scientific to investigate code, but it is a general technique that we use to gain knowledge from initially not understood phenomena; which is identical to an intractable code base that you don't yet understand.
@@ -148,7 +148,7 @@ Lets revisit our original goals to see how the scientific method for reading cod
 - The *feedback loop* of increasing knowledge with stronger hypothesis is implicit.
 - The focus on creating hypothesis replaces rote memorization with high-level ideas, thus better accommodates *human short term memory limitations*.
 
-![Left: We do not read code for reading's sake. To productively read code, we focus on understanding some set of *goals*. Conceptually, the question is how we read code productively to mentally get to the goal. Center: The arrows represent the hypothesis that we use to create understanding of clusters of code. We are always attempting to create hypothesis in the *direction* of the goal. Right: Using the onion model (next section) we bound our investigation strategically to emphasize understanding the abstractions the code is structured around, modules.](resources/sci_method)
+![Left: We do not read code for reading's sake. To productively read code, we focus on understanding some set of *goals*. Conceptually, the question is how we read code productively to mentally get to the goal. Center: The arrows represent the hypothesis that we use to create understanding of clusters of code. We are always attempting to create hypothesis in the *direction* of the goal. Right: Using the onion model (next section) we bound our investigation strategically to emphasize understanding the abstractions the code is structured around, modules.](resources/sci_method.pdf)
 
 **The code reading scientific method as mental model refinement.**
 A mental model is a high-level abstraction about the properties, behavior, and invariants on a body of code.
