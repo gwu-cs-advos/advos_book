@@ -76,6 +76,7 @@ We use this as a counterpoint to the high-level abstractions investigated previo
 
 - Linux [performance introspection tools](http://www.brendangregg.com/linuxperf.html)
 - Applications [working set size](http://www.brendangregg.com/wss.html)
+- Introductory overview of [architecture details](https://medium.com/swlh/what-does-risc-and-cisc-mean-in-2020-7b4d42c9a9de), and an interesting treatment of the [Apple M1](https://debugger.medium.com/why-is-apples-m1-chip-so-fast-3262b158cba2)
 
 ## Macro-optimization
 

@@ -569,7 +569,9 @@ The general question include how you should *name* system resources, how you can
 	- Database [stored procedures](https://en.wikipedia.org/wiki/Stored_procedure).
 	- OpenGL [display lists](https://en.wikipedia.org/wiki/Display_list) (or command buffers/command lists).
 	- Linux dynamically uploadable procedures via [ebpf](https://ebpf.io/).
+	- The common use of [lua](http://www.lua.org/) as a configuration and policy engine embedded in C++ games.
 	- [Graphql](https://graphql.org/)[[2]](https://en.wikipedia.org/wiki/GraphQL) vs [REST](https://en.wikipedia.org/wiki/Representational_state_transfer) w/ [CRUD](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete) operations.
+	- HTTP 1.0 vs. [pipelining in HTTP/2](https://en.wikipedia.org/wiki/HTTP_pipelining).
 
 	Data aggregation across communication is most often see as the batching of data.
 	When we print (e.g. with `printf`), we don't usually call `putc` on each character.
@@ -578,7 +580,6 @@ The general question include how you should *name* system resources, how you can
 
 	- async communication via pipes with finite buffering to batch sends/receives
 	- buffering/*batching* of service requests (printing!) -- downsides WRT throughput vs. latency & `fflush(...)`
-	- HTTP 1.0 vs. [pipelining in HTTP/2](https://en.wikipedia.org/wiki/HTTP_pipelining).
 
 - *Concurrency.*
 	We must consider asynchrony and multiplexing in our interactions with named resources/objects: how can interactions hide the latency of communication (e.g. network/disk latency), and compensate for non-deterministic concurrency
@@ -611,6 +612,7 @@ An additional important aspect of system design is an understanding of reality.
 There is a common trade-off between *perfection and shipping*.
 An important question is what features and aspects of design don't need to be perfect?
 Where can the design be weak?
+If you don't have time to prevent all accidental complexity, try and engineer where you're OK with it sneaking in.
 
 Taking this consideration further, some harsh reality: "[worse](https://en.wikipedia.org/wiki/Worse_is_better) is [better](https://dreamsongs.com/WorseIsBetter.html)".
 The best technology doesn't always win.
