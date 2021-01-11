@@ -625,15 +625,23 @@ It is important to consider many of these factors when reading or implementing a
 Some of the most important properties that you should consider when assessing, and designing interfaces include *composability*, *state management*, and *commutativity*.
 
 - *Composability.*
-	Are there traps in interactions between *different parts* of the API?
+	Are there traps in interactions between *different functions* in the API?
 	How about between this API and others?
+	There are two key questions related to composability:
 
-	- `fork` vs. `posix_spawn` and `CreateProcessA`
-	- signals w/ re-entrancy & locks vs. blocking & event notification
-	- global data and state (`strtok` vs. `strtok_r`)
-	- interrupts vs. polling
-	- locks (no enforced nesting) + blocking vs. lock-free/transactional memory
-	- multithreading vs. data-structures!! (sometimes a lack of composability is worth it, but demands additional abstractions)
+	1. If I call *f(...)*, is it possible for it to fail -- despite its specification giving us confidence it should work -- given the context of previous abstractions I've used up till now?
+	2. If so, how can the abstraction I'm trying to use, be impacted by the context?
+		Is it possible to control the impact of the non-composability, and how much accidental complexity does it add?
+
+	Some examples:
+
+	- [`fork`](https://www.microsoft.com/en-us/research/uploads/prod/2019/04/fork-hotos19.pdf) vs. `posix_spawn` and `CreateProcessA`
+	<!-- - The massive complexity Signals w/ re-entrancy & locks vs. blocking & event notification -->
+	- Global data and state can cause a function to not compose with itself (`strtok` vs. `strtok_r`)!
+	- Abstractions that have global and non-deterministic effects: interrupts vs. polling.
+	- Locks (no enforced nesting) + blocking vs. lock-free/transactional memory.
+	- Multithreading vs. data-structures fundamentally don't compose!!
+		However, sometimes a lack of composability is worth it, but demands additional abstractions.
 
 - *State management.*
 	Interface implementations might abstract away an immense amount of state (like a file system), or they might take a lighter touch.
@@ -729,9 +737,12 @@ Some of the most important properties that you should consider when assessing, a
 	Doe the SQL processor have to include code to consider only operations the FS can perform?
 	This example demonstrates the danger of non-orthogonality: either the implementations of different modules need to become increasingly coupled -- which makes it impossible to replace any of them, and more difficult to debug them, or they remain separate and have undefined, surprising, or bad interactions in edge-cases.
 
+	The ability to `mmap` a file, and access its contents using load/store instructions *and* to *also* access the file using `read`/`write`/`seek` clearly is not orthogonal.
+	However, the benefit of being able to directly access file data using memory operations has enough benefit that `mmap` won out over orthogonality.
+
 	A high-level way to think about SoC and orthogonality is to ask: given the set of *effects* that a function or an interface has on encapsulated state, the extent to which two functions or two interfaces are coupled (thus not following SoC/orthogonality) is commensurate to how much those effects impact state visible to the other.
 	We want our interfaces to be orthogonal *and* composable.
-	This is because orthogonal interfaces do separate, useful things, and composing them together leads to a system that is greater than the two parts.
+	Orthogonal interfaces do separate, useful things, and composing them together leads to a system that is greater than the two parts.
 
 - *[Separation of Mechanism and Policy](https://dl.acm.org/doi/10.1145/1067629.806531).*
 	Policy is a decision about *how* to use a provided *mechanism*.
