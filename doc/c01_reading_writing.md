@@ -23,13 +23,18 @@ These include:
 
 Understanding complexity
 
-- Code complexity:
-    [cyclomatic complexity](https://en.wikipedia.org/wiki/Cyclomatic_complexity), [understanding](https://yurichev.com/blog/cyclomatic/) it for Linux, and [arguments against](https://www.cqse.eu/en/news/blog/mccabe-cyclomatic-complexity/) it and [alternatives](https://carlalexander.ca/what-is-software-complexity/).
--  Constraining complexity:
+- How can we think about the complexity of code?
+    One (flawed) version is automatic metrics like [cyclomatic complexity](https://en.wikipedia.org/wiki/Cyclomatic_complexity) -- approximately, that complexity is the sum of the number of expressions, the number of edges (each `if` and `while` creates two), and the number of connected components (a proxy for this is one for each loop).
+	This has been applied to [understand](https://yurichev.com/blog/cyclomatic/) it for Linux.
+	There are many [arguments against](https://www.cqse.eu/en/news/blog/mccabe-cyclomatic-complexity/) it and [alternatives](https://carlalexander.ca/what-is-software-complexity/).
+	I do find this metric flawed as it doesn't consider the fact that we have to *reason* about the *paths* in the program, but the number of paths is exponential with respect to (WRT) the number of conditions and loops.
+-  What are some high-level prescriptions to constrain this type of complexity?
+	A number of programming guidelines for high-confidence systems all seek to constrain this complexity.
+	Some examples:
 
-    - [jpl](https://yurichev.com/mirrors/C/JPL_Coding_Standard_C.pdf)
-	- [misra](https://en.wikipedia.org/wiki/MISRA_C) [c](http://caxapa.ru/thumbs/468328/misra-c-2004.pdf)
-	- [composite style philosophy](https://github.com/gwsystems/composite/blob/ppos/doc/style_guide/composite_coding_style.pdf)
+    - [jpl](https://yurichev.com/mirrors/C/JPL_Coding_Standard_C.pdf) coding standard for c,
+	- the quite common [misra](https://en.wikipedia.org/wiki/MISRA_C) [c](http://caxapa.ru/thumbs/468328/misra-c-2004.pdf) c, and
+	- the [composite style philosophy](https://github.com/gwsystems/composite/blob/ppos/doc/style_guide/composite_coding_style.pdf).
 
 ### Reading Code
 
