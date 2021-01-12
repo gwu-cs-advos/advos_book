@@ -55,7 +55,6 @@ Contributions
 
 - 'Humanized' comparison:  https://gist.github.com/hellerbarde/2843375
 - Visual comparison chart: http://i.imgur.com/k0t1e.png
-```
 
 ## Micro-optimization
 
