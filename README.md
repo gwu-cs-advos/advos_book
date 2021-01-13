@@ -23,4 +23,7 @@ Build the book:
 1. Install `pandoc`and `latex` (e.g. `apt-get install pandoc texlive texlive-latex-extra`),
 2. `./build.sh`
 
+If this does not work, try `apt-get install texlive-fonts-recommended texlive-fonts-extra` and re-building
+
+
 This should generate `gwu_aos.pdf`. I have no idea if this will work on non-Linux systems.
