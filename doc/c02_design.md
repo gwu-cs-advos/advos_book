@@ -346,7 +346,7 @@ Some of the most important properties that you should consider when assessing, a
 	But the SQL interface can be used to do things that you cannot do in the FS, for example, to modify `..` and `.` to reference other directories.
 	What does the FS code do when it finds these inconsistent states?
 	Does the FS now need to include code to consider *all possible* configurations of the database?
-	Doe the SQL processor have to include code to consider only operations the FS can perform?
+	Does the SQL processor have to include code to consider only operations the FS can perform?
 	This example demonstrates the danger of non-orthogonality: either the implementations of different modules need to become increasingly coupled -- which makes it impossible to replace any of them, and more difficult to debug them, or they remain separate and have undefined, surprising, or bad interactions in edge-cases.
 
 	The ability to `mmap` a file, and access its contents using load/store instructions *and* to *also* access the file using `read`/`write`/`seek` clearly is not orthogonal.
