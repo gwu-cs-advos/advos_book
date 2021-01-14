@@ -262,19 +262,226 @@ Some of the most important properties that you should consider when assessing, a
 	2. If so, how can the abstraction I'm trying to use, be impacted by the context?
 		Is it possible to control the impact of the non-composability, and how much accidental complexity does it add?
 
+	An example (and more to come in the next sections): Locks are generally *not composable*.
+	Lets consider a few functions that modify bank accounts:
+
+	```c
+	fn dec(struct account *a, int amnt) {
+		lock_take(&a->l);
+		if (a->balance < amnt) {
+			lock_release(&a->l);
+			return -1;
+		}
+
+		a->balance -= amnt;
+		lock_release(&a->l);
+		return 0;
+	}
+
+	fn inc(struct account *a, int amnt) {
+		lock_take(&a->l);
+		a->balance += amnt;
+		lock_release(&a->l);
+	}
+	```
+
+	These two functions work on their own, but when composed together, they don't!
+	If we want to transfer money from one account to another, we have something like this:
+
+	```c
+	// transfer between accounts
+	dec(a, 10);
+	inc(b, 10);
+	```
+
+	The problem here, is if we're preempted between `dec` and `inc`, the total amount of money in the system is incorrect!
+
+	```c
+	fn transfer(struct account *from, *to, int amnt) {
+		lock_take(&from->l);
+		lock_take(&to->l);
+		to->balance += amnt;
+		from->balance -= amnt;
+		lock_release(&to->l);
+		lock_release(&from->l);
+	}
+	```
+
+	Now we transfer by simply:
+
+	```c
+	transfer(a, b);
+	```
+	...but now the problem is that we have potential deadlock (if another thread does `transfer(b, a)`)!
+	To make this work, you likely either use a global block that protects both accounts, or ensure that you take the locks in the same order, regardless the argument order (e.g. by always taking the lock with the lower address first).
+
+	We see here that locks fundamentally don't compose: functions might work independently, but where a critical section is necessary to spans multiple calls, independent function's don't compose.
+	Thus, you might see "aggregate functions" in APIs simply to span critical sections across the constituent conceptual operations.
+
 	Some examples:
 
 	- [`fork`](https://www.microsoft.com/en-us/research/uploads/prod/2019/04/fork-hotos19.pdf) vs. `posix_spawn` and `CreateProcessA`
 	<!-- - The massive complexity Signals w/ re-entrancy & locks vs. blocking & event notification -->
-	- Global data and state can cause a function to not compose with itself (`strtok` vs. `strtok_r`)!
+	- Global data and state can cause a function to not compose with itself (e.g. `strtok` vs. `strtok_r`)!
 	- Abstractions that have global and non-deterministic effects: interrupts vs. polling.
-	- Locks (no enforced nesting) + blocking vs. lock-free/transactional memory.
+	- Locks (no enforced nesting) + blocking vs. lock-free/transactional memory, and the general challenge of [programming with locks](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/beautiful.pdf).
 	- Multithreading vs. data-structures fundamentally don't compose!!
 		However, sometimes a lack of composability is worth it, but demands additional abstractions.
+
+- *[Separation of concerns](https://en.wikipedia.org/wiki/Separation_of_concerns) (SoC)* and *[Orthogonality](http://www.catb.org/~esr/writings/taoup/html/ch04s02.html#orthogonality).*
+	When attempting to figure out how to break down the interfaces of the system into different "clusters" that are implemented by modules, the SoC and orthogonality are guides.
+	Different functions in an interface -- and, indeed, different interfaces -- should each perform a specific function that does not overlap with others.
+	This lack of overlapping functionality, and unintended modifications, produces an orthogonal design.
+
+	> Do one thing well.
+	> - Doug McIlroy
+
+	This quote is not about simplicity, instead about orthogonality.
+	Orthogonality in code can be seen as avoiding code redundancy: a single function is responsible for some functionality.
+	This follows from the "don't repeat yourself" rule.
+
+	Imagine a system that replaces the file system code in the kernel with a database (see an attempt in [WinFS](https://en.wikipedia.org/wiki/WinFS), and a simpler hack in [joinFS](https://www2.seas.gwu.edu/~gparmer/publications/esa11.pdf)).
+	However, for power users it enables them to directly use SQL for operations like aggregation that couldn't be easily leveraged through the FS interface.
+	Now there are *two* interfaces the provide two subtlety different APIs to the same state.
+	But the SQL interface can be used to do things that you cannot do in the FS, for example, to modify `..` and `.` to reference other directories.
+	What does the FS code do when it finds these inconsistent states?
+	Does the FS now need to include code to consider *all possible* configurations of the database?
+	Doe the SQL processor have to include code to consider only operations the FS can perform?
+	This example demonstrates the danger of non-orthogonality: either the implementations of different modules need to become increasingly coupled -- which makes it impossible to replace any of them, and more difficult to debug them, or they remain separate and have undefined, surprising, or bad interactions in edge-cases.
+
+	The ability to `mmap` a file, and access its contents using load/store instructions *and* to *also* access the file using `read`/`write`/`seek` clearly is not orthogonal.
+	However, the benefit of being able to directly access file data using memory operations has enough benefit that `mmap` won out over orthogonality.
+
+	The above lock example that required the addition of the `transfer` function to extend the span of a critical section demonstrates non-orthogonality.
+	`transfer` is conceptually redundant with `inc` and `dec`.
+	It demonstrates that sometimes you need to depart from orthogonality to satisfy niche situations, or provide optimizations.
+	Others [have argued](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/beautiful.pdf) that locks should be replaced with abstractions such as software transactional memory (STM)^[Time has not replaced locks with STM. It is useful and powerful when used with functional data-structures, but much more challenging with general data-structures.].
+
+	Another simple example: Linux has a huge variety of different ways to do IPC including signals, pipes, System V Shared Memory, mapped files, shared files, named pipes, UNIX domain sockets, TCP/UDP sockets, DBus, Binder (on Android), ...
+	When you sit down and try and write a service, which should you choose?
+
+	A high-level way to think about SoC and orthogonality is to ask: given the set of *effects* that a function or an interface has on encapsulated state, the extent to which two functions or two interfaces are coupled (thus not following SoC/orthogonality) is commensurate to how much those effects impact state in a way similar to the other.
+	We want our interfaces to be orthogonal *and* composable.
+	Orthogonal interfaces do separate, useful things, and composing them together leads to a system that is greater than the two parts.
+	This is the core of how systems become more useful, and more powerful, once they hit users, and was one of the core underlying principles of UNIX.
+
+- *[Separation of Mechanism and Policy](https://dl.acm.org/doi/10.1145/1067629.806531).*
+	Policy is a decision about *how* to use a provided *mechanism*.
+	How does your application use the mechanisms for accessing files in the file system to create its functionality?
+	How does the shell use pipes, `dup`, and `fork` to create useful pipelines?
+	Often policy is leveraging the composability of the mechanism's interface to create new behavior.
+
+	The X-windows server provides primitive mechanisms around compositing and rasterizing (displaying overlapping windows), and relies on the clients to provide their own styling and ["chrome"](https://en.wikipedia.org/wiki/Graphical_user_interface#User_interface_and_interaction_design).
+	This moves the policy of how to define the chrome to the applications.
+	This has the massive benefit that defines the chrome, is the application which likely knows best how to use the chrome.
+
+	Policies tend to become *mechanisms* at the next higher abstraction level, and are used by even higher level policies as such.
+	At the lowest level, atomic instructions are mechanisms provided by the hardware.
+	We define policies on top of that to define locks and semaphores.
+	We use those locks and semaphores as mechanisms to define the policy of full condition variables.
+	This emphasizes the power of this separation: policy is enabled to use the abstractions in specific ways, and those policies that provide useful abstractions can be further built on.
+
+	What's the downside?
+
+	> the cost of the mechanism-not-policy approach is that when the user can set policy, the user must set policy.
+	> - Eric Raymond
 
 - *State management.*
 	Interface implementations might abstract away an immense amount of state (like a file system), or they might take a lighter touch.
 
+	- *Liveness* -
+		Who owns a reference, the caller or the callee?
+		This is a concern mainly applicable in pass-by-reference (library) based APIs where resources are referenced with pointers.
+		It is essential to understand if the client or the service are in charge of deallocating the resource, and when references to the resource are valid.
+		This type of information is a part of all APIs, even those that are handle-based (e.g. file descriptors).
+		The client owns a reference if it is responsible for deciding when to `free` the resource (in handle-based APIs, this might instead be something like a `close` or `unlink`).
+		If the service owns the reference, it is in charge of storing and managing the lifetime of the resource.
+		A few examples:
+
+		1. A service that stores objects in some data-structure (DS), and enables them to be retrieved later.
+
+			In the first case, the client owns the object reference.
+			A client passes a reference to an object, the service stores the reference in the DS, and the client `free`s the object.
+			This can be problematic.
+			What if the service is a library, and the client `free`s the object while it is still referenced in the data-structure?
+			The library will now have a [dangling reference](https://en.wikipedia.org/wiki/Dangling_pointer) to memory.
+			If the service provides *handles* for the client to reference the object, this problem goes away.
+			Instead of simply calling `free` to deallocate the object in memory, we must use an API provided by the service to deallocate the object.
+			Examples of this in APIs are `close`, and `pthread_mutex_destroy`.
+
+		    In the second case, the service owns the object, so it is responsible for deallocating it.
+			The client can pass a reference to the object, but since it passes ownership, it is possible that the service deallocates it.
+			Thus, it cannot be dereferenced by the client.
+		2. A second service simply takes a string as an argument, and counts the number of words in it.
+			In the first case, the client owns the string, thus the service can reference it during the function call, but not after.
+			This is the typical case in many of the `string.h` functions.
+			The function does some operation that extracts information from the string, and never accesses it again (unless it is passed in again as an argument).
+
+			In the second case, the service is passed the ownership over the string when the API is called to the service.
+			The service, thus, must `free` the string.
+			This is *not possible* with a handle-based approach as the service (e.g. in the kernel) cannot `free` a string in user-level (the `malloc` implementation is a library in user-level).
+			If the service is a library, then it can free the reference (a pointer to the string).
+			But imagine how awkward this is: you ask a function to count the number of words in a string, and now you're not allowed to access the string anymore!
+			Yikes!
+
+		A third examples demonstrates how libraries often structure their allocation and deallocation structures to take advantage of the ability to statically (on stack or in global memory) allocate structures.
+
+		```c
+		// Caller owns r, useful when this is necessary:
+		// statically allocated r structures
+		int res_init(struct resource *r, int f, ...) {
+			*r = (struct resource) { .field = f, ... };
+
+		    return 0; // initialization might fail based on arguments
+		}
+
+		// Callee owns r
+		struct resource *res_alloc(int f, ...) {
+			r = malloc(sizeof(struct resource));
+			if (r == NULL) return NULL;
+
+			init(r, f, ...);
+
+		    return r;
+		}
+
+		// Callee *maintains* ownership of r's memory
+		void res_deinit(struct resource *r) {
+			// do whatever we need to do to free the associated resources
+			memset(r, 0, sizeof(struct resource));
+		}
+		// Callee passes ownership to this function for us to free
+		void res_free(struct resource *r) {
+			res_deinit(r);
+			free(r);
+		}
+		```
+		Most users of the API will use `res_alloc` and `res_free`.
+		However, if the `struct resource` is allocated on the stack, or in global memory, then we need to have a means to initialize (and deinitialize) the resource that does *not* include memory allocation.
+		Note the stark difference in ownership between the `init`/`deinit` calls, and the `alloc`/`free` calls.
+	- *Thread safety* -
+		Can a function be called by two threads safety?
+		The word "safely" is doing a lot of work here.
+		The data-structures (state) that backs the API might suffer from *race conditions*, which only happen non-deterministically, but are decidedly not safe.
+		A decent mental model is that all thread safe APIs are using locks behind the wraps to prevent races.
+		If a function is *not* thread-safe, then you must provide your own locks to protect access to the API.
+	- *Reentrancy*^[The wikipedia page for this is not good, so I'm not linking to it. Take that.] -
+		A function is reentrant if it can be called within a signal or interrupt.
+		The dangerous case is this: we're executing in a thread, and call the function $f()$; a signal or interrupt is triggered which saves our current register context, and executes the handler (interrupt service routine, or signal handler) *in the context of the current thread*; and we call $f()$.
+		If $f$ uses global data-structures, we might be in a precarious position where half-modified data in the first call is then re-modified by the *nested* call to $f$.
+		Functions that can operate correctly in these circumstances are reentrant (we can re-enter them safely), and those that cannot are non-reentrant.
+
+		It is so hard to make functions with significant complexity reentrant, that most modern signal handlers only do very simple things.
+		For example, `malloc` is not reentrant, so you cannot dynamically allocate memory in a signal handler.
+		A common design pattern is for the signal handler to only write a byte to a pipe, and return.
+		The main code (outside of the signal) can detect that the pipe has data, and handle the event at that point.
+
+		Reentrancy is often confused with thread safety, and it superficially has a lot of similarities: the lack of it only causes problems non-deterministically, and there is a feeling that they both are related to race-conditions.
+		However, they are not the same.
+		In fact, often, when a function is thread safe (and uses locks), it is almost never reentrant.
+		If we call the function, take the lock, then get a signal which calls the function and tries and take the same lock, we have a very bad situation.
+		This is why `malloc` is not reentrant.
+		Note that this example shows that signals and locks do not compose.
 	- *Stateless and immutable APIs* -
 		Stateless, or *pure* functions are those in which output depends *only* on the input, and the input is left unchanged.
 		Specification and testing of pure functions is often much simpler than for those that have state.
@@ -287,6 +494,7 @@ Some of the most important properties that you should consider when assessing, a
 		We might consider functions that access only *logically immutable structures* as a relaxation on stateless functions.
 		Their functionality depends on hidden state beyond the arguments passed in, but if that state is not modified, we can get some testing and specification benefits.
 		An example of this is system calls that are made only on subsets of the file-system namespace that can be read, but not written.
+		Another example, `getpid()`.
 	- [*Idempotent APIs*](https://en.wikipedia.org/wiki/Idempotence#Computer_science_examples) -
 		Idempotency is more realistic for system APIs.
 		Multiple calls to the same API function from a client does not result in a change the return value nor the visible state of the system.
@@ -344,54 +552,6 @@ Some of the most important properties that you should consider when assessing, a
 	If you can ensure that data-structures or data adhere to constraints (e.g. circular doubly linked lists can avoid conditionals), you can avoid superfluous edge-cases.
 	Generally, one need be willing to *rewrite* your code and *redesign* when you find that there is a way to simplify logic.
 	This is a higher-order optimization that should span your focus from the minutia of the code, up to module and inter-module design.
-
-- *[Separation of concerns](https://en.wikipedia.org/wiki/Separation_of_concerns) (SoC)* and *[Orthogonality](http://www.catb.org/~esr/writings/taoup/html/ch04s02.html#orthogonality).*
-	When attempting to figure out how to break down the interfaces of the system into different "clusters" that are implemented by modules, the SoC and orthogonality are guides.
-	Different functions in an interface -- and, indeed, different interfaces -- should each perform a specific function that does not overlap with others.
-	This lack of overlapping functionality, and unintended modifications, produces an orthogonal design.
-
-	> Do one thing well.
-	> - Doug McIlroy
-
-	This quote is not about simplicity, instead about orthogonality.
-	Orthogonality in code can be seen as avoiding code redundancy: a single function is responsible for some functionality.
-	This follows from the "don't repeat yourself" rule.
-
-	Imagine a system that replaces the file system code in the kernel with a database (see an attempt in [WinFS](https://en.wikipedia.org/wiki/WinFS), and a simpler hack in [joinFS](https://www2.seas.gwu.edu/~gparmer/publications/esa11.pdf)).
-	However, for power users it enables them to directly use SQL for operations like aggregation that couldn't be easily leveraged through the FS interface.
-	Now there are *two* interfaces the provide two subtlety different APIs to the same state.
-	But the SQL interface can be used to do things that you cannot do in the FS, for example, to modify `..` and `.` to reference other directories.
-	What does the FS code do when it finds these inconsistent states?
-	Does the FS now need to include code to consider *all possible* configurations of the database?
-	Doe the SQL processor have to include code to consider only operations the FS can perform?
-	This example demonstrates the danger of non-orthogonality: either the implementations of different modules need to become increasingly coupled -- which makes it impossible to replace any of them, and more difficult to debug them, or they remain separate and have undefined, surprising, or bad interactions in edge-cases.
-
-	The ability to `mmap` a file, and access its contents using load/store instructions *and* to *also* access the file using `read`/`write`/`seek` clearly is not orthogonal.
-	However, the benefit of being able to directly access file data using memory operations has enough benefit that `mmap` won out over orthogonality.
-
-	A high-level way to think about SoC and orthogonality is to ask: given the set of *effects* that a function or an interface has on encapsulated state, the extent to which two functions or two interfaces are coupled (thus not following SoC/orthogonality) is commensurate to how much those effects impact state visible to the other.
-	We want our interfaces to be orthogonal *and* composable.
-	Orthogonal interfaces do separate, useful things, and composing them together leads to a system that is greater than the two parts.
-
-- *[Separation of Mechanism and Policy](https://dl.acm.org/doi/10.1145/1067629.806531).*
-	Policy is a decision about *how* to use a provided *mechanism*.
-	How does your application use the mechanisms for accessing files in the file system to create its functionality?
-	How does the shell
-
-	The X-windows server provides primitive mechanisms around compositing and rasterizing (displaying overlapping windows), and relies on the clients to provide their own styling and ["chrome"](https://en.wikipedia.org/wiki/Graphical_user_interface#User_interface_and_interaction_design).
-	This moves the policy of how to define the chrome to the applications.
-	This has the massive benefit that defines the chrome, is the application which likely knows best how to use the chrome.
-
-	Policies tend to become *mechanisms* at the next higher abstraction level, and are used by even higher level policies as such.
-	At the lowest level, atomic instructions are mechanisms provided by the hardware.
-	We define policies on top of that to define locks and semaphores.
-	We use those locks and semaphores as mechanisms to define the policy of full condition variables.
-	This emphasizes the power of this separation: policy is enabled to use the abstractions in specific ways, and those policies that provide useful abstractions can be further built on.
-
-	What's the downside?
-
-	> the cost of the mechanism-not-policy approach is that when the user can set policy, the user must set policy.
-	> - Eric Raymond
 
 ### Reading
 
