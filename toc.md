@@ -11,6 +11,7 @@ Table of Contents:
 
 - [Security](./doc/c05_security.md)
 - [Parallelism](./doc/c07_parallelism.md)
+- [FAQ](./doc/c08_faq.md)
 - [Contributors](./doc/c09_contributors.md)
 
 Note that the pdf can be [easily generated](./README.md).
