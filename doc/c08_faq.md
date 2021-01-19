@@ -2,7 +2,7 @@
 
 # Frequently Asked Questions
 
-## Constraining Complexity
+## L1: Constraining Complexity
 
 Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33KvaE).
 
@@ -137,3 +137,73 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 	They disallow certain ways of using the system.
 	If one of these disallowed uses is required by the new module, then there isn't a means to bridge the semantic gap.
 	The underlying system is simply fundamentally inappropriate for the task at hand.
+
+## C1: System Interfaces and Zircon
+
+- What differentiates systems programs vs. application programs?
+	A simple set of differences get at the main point.
+
+	1. System services define APIs, while applications use them.
+		Thus, services define the abstractions of the system, applications use them.
+	2. This is confusing when you consider that libraries also define APIs but aren't often considered system services.
+		This is because libraries don't need to not just define resources, but also multiplex and control access to them across multiple applications.
+	3. As the system service cannot share its memory resources with an application (lest that application corrupt its data-structures), it cannot provide pointers to the client to refer to its resources.
+		Thus, system services often provide handles (integers, or a level of indirection) to bind the clients references to the resource.
+		Correspondingly, you will see this in many system designs.
+- Why do different clients require different mapping functions from names to resources?
+	Rephrasing: why do different processes have different virtual address spaces?
+	They should only be able to address potentially different sets of resources (pages of memory).
+	Containers are another good example of this: two containers have different views of the FS to increase isolation and customizability!
+	Even without containers, directory access rights can prevent some users from seeing some resources.
+- Do we care about system design concerns (naming, etc...) differently in systems with different system structures (e.g. a monolithic system vs. a micro-kernel)?
+	These are pretty universal concerns.
+	In monolithic systems, the handle-based bindings are exposed to user-level, while pointer-based bindings are used between different system modules.
+	In micro-kernels, you typically require handle-based bindings between each service (as they cannot share pointers).
+
+### Action Aggregation
+
+- Action aggregation is terrifying; how can we securely implement it?
+	Yes, it is terrifying.
+	You're running user-code on your system!
+	You always want to run user-code in a "sandbox" -- i.e. a controlled environment in which they can only access resources you've explicitly granted them.
+	You need to pair that with a constrained API that prevents the user from doing "bad things".
+	This is why most technologies for this use higher-level languages (like SQL for stored procedures, and lua for game policy programming), or carefully constructed sandboxes (ebpf and Webassembly).
+
+	An example for which you can more easily understand the security story: if you're installing software on your system, the software server is conceptually uploading a shell script onto your system that contains the programmatic logic of installation.
+	What do you have to do to make this secure?
+	Make sure that the shell script cannot access parts of the FS outside of what you want, memory-limit the script, make sure that it is CPU-limited, thus cannot monopolize the cores, etc...
+
+### Event notification
+
+- How do event notification systems handle races on modifications and accesses to the resources?
+	If we're told via an event notification API that a pipe has data, then before we can read from it someone else consumes the data, any further processing assuming that the event is still pending is misguided.
+	Level-triggered APIs (that return the *current* state of the system -- i.e. if there is an event active *now*) help, but you can always have a race between when the event notification API returns, and you try and access the resource.
+	There is no solution to this aside from tightly constraining who can access the objects (files) your waiting for events on.
+- Are "handles" the "fds" of zircon?
+	Yes.
+	They are the dynamic bindings to the kernel resources.
+- How does "liveness" work for kernel objects?
+	Some kernel resources have access to other handles (e.g. thread/process).
+	When you close a handle, the "kernel resources" are supposed to be cleaned up.
+	How does this happen with these handles that have handles?
+	All kernel objects are reference counted, so they are removed when there are no more references to them.
+	In this "nested" case, removing the handle to the thread might mean that the contained handles are no longer referenced, thus will also be deallocated.
+
+### Threads vs. Events for Concurrency Control
+
+- Thread vs. event driven architecture trade-offs?
+	Simply put, we need threads if we want to execute on multiple cores.
+	We often want events (and event loops) when we want high scalability with controlled memory consumption (no thread stacks).
+	Unfortunately naive event programming is not fun and requires "stack ripping" or nested closures.
+	Modern languages have gotten smart and are able to turn functions into state-machines that look like threaded code, but are, behind the scenes, event-driven code (see `async/await` in javascript and Rust).
+	There are arguments that [events are better](https://web.stanford.edu/~ouster/cgi-bin/papers/threads.pdf), and that [threads are better](http://capriccio.cs.berkeley.edu/pubs/threads-hotos-2003.pdf), but I think that the world has shown that they are just [multiple tools for the job](https://lwn.net/Articles/223980/).
+- Why do event-driven APIs require non-blocking?
+	If we block on a system call, we cannot service any other pending events.
+	Thus blocking is bad when you want a single thread to service multiple event sources.
+	But if `select`/`epoll` told you that there was data on a file, why do you care if the system call is blocking or not?
+	You shouldn't block as you know data is available on it, right?
+	Event notification APIs tell you that there is data available, not *how much* data is available.
+	With blocking APIs, it is really hard to know when you've read all available data.
+- Do systems provide both threaded and event-driven?
+	Yes!
+	They provide both thread APIs, and event notification APIs with the option of asynchronous APIs.

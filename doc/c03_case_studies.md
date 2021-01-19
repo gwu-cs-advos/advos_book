@@ -45,7 +45,7 @@
 
 Scaling abstractions across features:
 
-- non-uniform event notification (fds vs. signals vs. timers)
+- non-uniform event notification (fds vs. signals vs. timers vs. process termination)
 - [fork](https://www.microsoft.com/en-us/research/uploads/prod/2019/04/fork-hotos19.pdf) (vs. `posix_spawn` and [`CreateProcessA`](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa))
 
 	- threads
@@ -61,6 +61,14 @@ Scaling abstractions across features:
 	- `errno = EINTR` for *most* system calls; when is the last time you checked for this?
 	- signals don't compose with stateful APIs, nor with **system calls**!
 	- Should use sigaction to turn off this behavior in most cases using `SA_RESTART`
+	- `signalfd` as a solution, but it carries around a [lot of legacy](https://ldpreload.com/blog/signalfd-is-useless)
+
+Unifying Event notification around `fd`s:
+
+- `signalfd` as a solution, but it carries around a [lot of legacy](https://ldpreload.com/blog/signalfd-is-useless)
+- `pidfd_open` to get process terminate requests, but what about processes that terminate before this call?
+- `timerfd`
+- ...all tied together with `fd`s mainly to fit into the same event loop
 
 [Tacked on and/or replaced mechanisms](https://roxanageambasu.github.io/publications/eurosys2016posix.pdf) -- discussion on the self-consistency of design
 
