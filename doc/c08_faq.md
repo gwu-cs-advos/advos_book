@@ -207,3 +207,119 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 - Do systems provide both threaded and event-driven?
 	Yes!
 	They provide both thread APIs, and event notification APIs with the option of asynchronous APIs.
+
+
+## L2: Interface Design and Properties
+
+### State Management
+
+- The less our design leverages global state, the better?
+	Generally, yes.
+	It is much easier to test, and implement functions that are isolated from the effects of other functions -- in some sense, avoiding global state massively increases compositionality.
+	However, it is impossible to provide many system services with this property.
+	We always have some global structures as they track the state of system resources.
+- Is idempotency equivalent to deterministic functions in math?
+	No.
+	Deterministic functions (if I understand the referenced concept) return output based solely on the input.
+	These are *pure* functions or (as I said in the lecture) "stateless".
+	Idempotent functions can have output based on "hidden" state (think, a cache, a disk, etc...).
+	If some of those operations can *change* the state, then another otherwise idempotent functions retrieve that state, the retrieval functions are not idempotent with respect to the update operations.
+	However, the retrieval and update operations are likely idempotent with respect to themselves.
+	A simplistic (and common) view on idempotency ignores the relationship of these functions to each other.
+- Is it possible to have a thread-safe function be re-entrant?
+	Yes.
+	A few examples (I'm sure there are more, but these are the ones that popped into my head):
+
+	1. You can use recursive/re-entrant locks (see the book), and track if your own thread is already processing in a critical section, and figure out some way to proceed without touching the shared structures (e.g. return some failure mode).
+	2. You can use wait-free algorithms that only use atomic instructions, and avoid `cas` loops, thus can proceed in the signal handler regardless where the preemption happened in the main thread's execution.
+- Which functions actually *are* re-entrant?
+	`strtok_r` stores the state in the arguments passed in, thus will execute re-entrantly for different sets of arguments; similar arguments apply to many of the `str*` class of `string.h` functions; and, generally, any API that depend only on arguments to compute the results.
+	Careful implementation in stateful functions can also be re-entrant, but this requires a lot of consideration and work; most modern libraries don't consider this, and instead require that signal handlers are simple and restricted in scope.
+
+### Trading Complexity for Performance
+
+- Which of these aspects of interface design do we prioritize if we're on a deadline, and can't do it all?
+	Depends on the goals of the system.
+	You really don't want to bake into the API, designs that support many clients, thus you have to life with the API forever-more.
+	If it is a "public" API, you really want to get it right.
+	API design is usually worth the design time spent on it.
+	You can fix a simplistic or faulty implementation, but backwards compatibility makes you always have to live with API mistakes.
+- Should we always choose performance over the "nice-to-have" interface properties?
+	No.
+	We often design systems and ask "what operations *must* be fast".
+	We define a "fast-path" in the system (or multiple), and focus optimizations around that.
+	Once we do that, we want to make the API as easy to use as possible in general, and depart from that ease of use to make the fast-path efficient.
+	Linux doesn't really have this luxury as the "fast paths" differ across the vast number of applications.
+	However, most systems that we implement are much more specialized, and do have the luxury to be more opinionated about what we optimize for.
+
+### Designing for Composability and Orthogonality
+
+- Are there mechanisms to avoid breaking orthogonality?
+	Not that I know of.
+	That's why we're discussing it in the class: if you're aware of the goals, you can consider them in interface creation.
+	If you break then, then you can do so intentionally, and document why.
+- Is there a general way to create composable APIs for shared resources?
+	Not that I know of.
+	A common technique, if we can call it that, is to make the API more complicated to handle changes that span multiple API calls.
+	They are conceptually similar to the `cas` atomic instructions:
+
+	1. one of the API functions returns a "token" that records the state of the system,
+	2. each subsequent call takes that token, and will make modifications contingent on not conflicting with other parallel modifications.
+
+	The general idea is to "make modifications only if the state is as expected", and this is a composable function that can be tied together into higher-level operations.
+	Many web caches provide an API to set a key to a value *only if* the value was previously some specific value.
+	This is similar and generalized to [Optimistic Concurrency Control (OCC)](https://en.wikipedia.org/wiki/Optimistic_concurrency_control) in data-bases.
+
+	An additional technique is to provide a "token" as part of the API that specifies which "portion" of the backing state is being modified and queried.
+	A good example of this is [session tokens](https://en.wikipedia.org/wiki/Session_(computer_science)) that are used to identify a specific user that is interacting with a webpage over multiple requests (think the "paging" required by the "next" links to query subsequent data items).
+
+	[Software transactional memory](https://en.wikipedia.org/wiki/Software_transactional_memory) (STM) in Haskell/Clojure implements APIs essentially based on the "make modifications only if state is as expected", and are able to hide the complexity of the API behind a coherent library abstraction.
+	They both rely on the functional behavior of the underlying system to make this practical, thus this technique is not generally applicable to systems -- that are *not* functional (e.g. stateless or pure).
+
+	However, these are examples.
+	I don't know of any general -- or prescribed -- techniques to create composable APIs.
+- Is the API composable if some of the functions, or the resources in state, can compose, but others cannot?
+	Within a given API, the composability constraints can be documented.
+	We often define a protocol (or state-machine) which can define the state of the resources being modified, and only specific functions can apply to resources in specific states.
+	There is an inherent protocol in networking connection creation that flows through `socket`, `bind`, `listen`, `accept`, and `read`.
+	These functions are *not* arbitrarily composable, instead they can only operate on a resource (the socket) when it is in a specific state (as defined by the previous functions used to operate on it).
+
+	That said, we often worry more about the composability of different APIs together.
+	Does `fork` compose with `pthread`s?
+	Do `pthread`s compose with `errno`?
+	Do signals compose with blocking ("long") system calls?
+	No, no, and no.
+	We must focus not only on "self composability" (and document constraints on that), but also on the composability of different, potentially "interfering" with each -- demonstrating a lack of composability.
+
+### Commutativity
+
+- How can `open` not commute -- two calls, regardless the order seem identical for all functionality that matters, right?
+	For a user's perspective, it *feels* like they are identical.
+	From a shell's perspective, they are *not*.
+	For example, `sh` in `xv6` *requires* that the order of opens translates into *specific* file descriptors being allocated (see the [careful dance](https://github.com/gwu-cs-os/gwu-xv6/blob/master/sh.c#L100-L112) with `close` and `dup` when creating pipes).
+	More importantly, the *specification* of how *open* and *dup* behave is what we assess when judging commutativity.
+	Human perceived importance of various behaviors in APIs are not very relevant, only the specification.
+	POSIX's *specification* requiring allocation of the lowest-free file descriptor ensures that two `open` (or `dup`) calls do *not* commute.
+	This means that an implementation that adheres to this specification cannot be scalable.
+	This hopefully emphasizes why the *specification*, not a *sense* about what part of APIs are important, is the relevant detail to focus on.
+
+### Moar Interfaces, MOAR
+
+- With respect to liveness: if a user opens a file, thus in some sense owns the reference to the file, and is responsible for `close`ing it, what happens if the user doesn't?
+	The reference will stick around!!!
+	When a process `exit`s, all of its referenced are cleaned up, and at that point the file will be released (and potentially freed if all other references are removed from it).
+	There is a very deep, worrisome problem here: we are using up kernel resources (memory and potentially disk) to store the file.
+	Are we "charging" (i.e. *accounting* for) those resources properly?
+	Are they counted against the total amount of memory/disk that the process/user is using?
+	This is a very difficult problem to solve.
+	To make proper resource *allocation* decisions, we often want to consider how much of a resource some user/process is already using, and allocate more to those that are using fewer (as an example policy).
+	Without proper accounting, a potential attack is opened up where the user can use many more resources than it should be able to by consuming service's resources on their behalf.
+	This is made all the more complicated when those resources are "shared" between processes.
+	Do we proportionally "charge" each process?
+	If so, one process removing a reference will *increase* the amount that others are charged.
+	This is odd: your resource consumption accounting goes *up* through no action of your own.
+	Hard stuff.
+- Do we ever remove API functions in systems -- for example, system calls in Linux?
+	Not really.
+	Certainly Linux doesn't remove system calls.
+	So long as there are users of the API, to remove it you have to either 1. be willing to break existing applications (see Python's transition to 3.0), or 2. provide a reasonable transition plan to support the old functions in libraries (e.g. support the old APIs in a library by using underlying composable APIs of the other functions of the interface).

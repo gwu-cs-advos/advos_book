@@ -595,6 +595,14 @@ This is a higher-order optimization that should span your focus from the minutia
 
 ## OS Design and Trade-offs
 
+How do the previously discussed software engineering concepts apply to systems?
+Now that we understand the design goals and constraints of systems, we'll move on to understanding how OSes apply these designs to hardware.
+At the highest level, OSes provide the following major functions:
+
+1. sharing of hardware between different principals,
+2. providing functionality, abstractions, and services for principals to harness, and
+3. ensuring protection between principals.
+
 Necessary background concepts:
 
 - Resources need to be controlled with policies, and those polices must be expressed in code.
@@ -623,12 +631,6 @@ Necessary background concepts:
 	- containers
 
 - Case in point: We have $N$ pages of memory, who should be able to access them? The system must have a function $owner(n) \to \{ (p_0, va_i), (p_1, va_j), \ldots \}$, which is to say, that for frame $n \leq N$, it is mapped into a set of processes at specific virtual addresses. What in the system defines this function, $owner$?
-
-At the highest level, OSes provide the following major functions:
-
-1. sharing of hardware between different principals,
-2. providing functionality, abstractions, and services for principals to harness, and
-3. ensuring protection between principals.
 
 ### Example Design Issues
 
