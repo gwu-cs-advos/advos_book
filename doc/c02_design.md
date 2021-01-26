@@ -1,4 +1,4 @@
-## Macro-level, System Design
+# System Design
 
 - Design complexity:
 	[Brooks](http://worrydream.com/refs/Brooks-NoSilverBullet.pdf) observed that much software complexity is essential, but some is also accidental
@@ -26,7 +26,7 @@
 	- there are [many](https://pressupinc.com/blog/2014/05/root-causes-software-complexity/) [takes](https://medium.com/background-thread/accidental-and-essential-complexity-programming-word-of-the-day-b4db4d2600d4)
 	- an [argument](https://danluu.com/essential-complexity/) that technology *does* decrease accidental complexity, e.g. displaying data with `ggplot` includes downsampling, rendering, image output, etc...
 
-### Complexity Management
+## Complexity Management
 
 How do we design systems to manage complexity?
 Code has a tenancy to become pretty tightly coupled.
@@ -132,7 +132,7 @@ When you *change* a system, it is immensely valuable to have a *baseline* for co
 A unit testing suite enables more aggressive design, as changing a module can leverage automatic checking of the intended semantics (assuming you have a decent test suite).
 It also constrains complexity as module interfaces are better documented with use-cases, and auto-checked for some approximation of correctness.
 
-### System Interface Design Considerations
+## System Interface Design Considerations
 
 When designing system interfaces, you must often consider more factors than if you're simply implementing a library, or a module in an application.
 These are all motivated by system's responsibility to manage system resources and multiplex them.
@@ -247,7 +247,7 @@ Taking this consideration further, some harsh reality: "[worse](https://en.wikip
 The best technology doesn't always win.
 The first mover effect matters.
 
-### Interface Design Properties
+## Interface Design Properties
 
 Different functions in system interfaces have many high-level properties.
 It is important to consider many of these factors when reading or implementing an interface.
@@ -586,53 +586,55 @@ If you can ensure that data-structures or data adhere to constraints (e.g. circu
 Generally, one need be willing to *rewrite* your code and *redesign* when you find that there is a way to simplify logic.
 This is a higher-order optimization that should span your focus from the minutia of the code, up to module and inter-module design.
 
-### Reading
+## Reading
 
 - Chapters 1 & 2 in "Principles of Computer System Design: An Introduction" by Jerome H. Saltzer and Frans Kaashoek the latter chapters of which are [free online](https://ocw.mit.edu/resources/res-6-004-principles-of-computer-system-design-an-introduction-spring-2009/online-textbook/).
 - [Lamport's immensely important treatise.](https://www.dropbox.com/sh/4cex542zznbjh7b/AADM59pqAb9YBy4eeT1uw0t8a?dl=0)
 - A deep-dive into the [The Art of Unix Programming](http://www.catb.org/~esr/writings/taoup/html/index.html) by a seminal open-source personality.
 	I suggest buying this (old) book (the web "rendering" shows its age).
 
-## OS Design and Trade-offs
+### Aside: Layering and Structure
 
-How do the previously discussed software engineering concepts apply to systems?
-Now that we understand the design goals and constraints of systems, we'll move on to understanding how OSes apply these designs to hardware.
-At the highest level, OSes provide the following major functions:
+> Note: This section needs to find a home.
 
-1. sharing of hardware between different principals,
-2. providing functionality, abstractions, and services for principals to harness, and
-3. ensuring protection between principals.
+The [THE](https://dl.acm.org/doi/10.1145/363095.363143) OS (created by Dijkstra) created the idea of layering as a fundamental OS system structuring technique.
+It had the following layers (not it was a drastically simpler system than modern OSes).
 
-Necessary background concepts:
+0. interrupts + scheduling
+1. memory allocation
+2. console
+3. I/O (paging/buffering)
+4. user programs
+5. "the user"
 
-- Resources need to be controlled with policies, and those polices must be expressed in code.
-- The kernel is only special as it has de-facto access to all resources.
-- If the kernel provides a means for accessing resources to processes, and a subset of resources is given to a process, then that process has great power (over those resources), but great responsibility (to manage those resources well).
-- If the system provides a means to *delegate* resources from one process to another, then access to the resource can be controlled *and extended* by the original resource holder; and if resource delegation can be delegated, then the ability to *manage* resources can be extended to other processes.
-- In both cases, the question how to revoke access must be answered.
-- Being concrete about resources, we can start by talking about those at the lowest-level:
+The layering is motivated by multiple desirable properties:
 
-	- CPU
-	- Physical pages of memory
-	- Interrupts
-	- IPIs
-	- Timers and timer interrupts
-	- Devices (memory mapped) -- virtual access to specific physical addresses
+- Testing is easier as layers can be analysed and tested from the bottom on up.
+- It restricts reasoning about the current layer to its code, and the *abstractions* of lower layers.
+	The implementation isn't necessarily a significant concern as which have already been reasoned about.
+- Isolation can be used to further reinforce the layer distinctions.
 
-	...or we might think about this at a higher-level
+It has a number of limitations including:
 
-	- [system calls](https://www.youtube.com/watch?v=xHu7qI1gDPA&list=TLPQMjIwNTIwMjA1MAN_H1P-DA)
-	- files
-	- network sockets
-	- pipes
-	- shared memory
-	- threads
-	- processes
-	- containers
+- How could we debug level 0 & 1 without the console (and printing)?
+	THE was created at a time when it is likely you could debug by "looking at the code".
+- This structure implies that there is no memory allocation required for scheduling.
+	That likely means a statically chosen number of threads, or at least a statically chosen *maximum* number of threads (like in `xv6`).
+- Where is a "thread" structure implemented?
+	It is likely needed for scheduling, but is also likely "associated" with memory allocations and I/O (for proper accounting).
 
-- Case in point: We have $N$ pages of memory, who should be able to access them? The system must have a function $owner(n) \to \{ (p_0, va_i), (p_1, va_j), \ldots \}$, which is to say, that for frame $n \leq N$, it is mapped into a set of processes at specific virtual addresses. What in the system defines this function, $owner$?
+In a real, complex system, a strict layered structure is implausible.
+However it demonstrates the idea: each layer defines a service that uses the mechanisms provided by the lower layers to define its own policies that it exports to the higher level.
+This clearly focuses on the separation of mechanism and policy, and on using composition of lower-layer mechanisms to create more abstract resources.
+
+Historical References:
+
+- [Microkernels](http://people.cs.uchicago.edu/~shanlu/teaching/33100_fa15/papers/nucleus.pdf) as a structuring technique
+- Design via the separation of [mechanism and policy](https://dl.acm.org/doi/10.1145/1067629.806531)
 
 ### Example Design Issues
+
+> Note: This section needs to find a home
 
 - Composability and tightening designs: recursive/[reentrant](https://en.wikipedia.org/wiki/Reentrant_mutex) locks/mutexes and why many [believe](http://www.fieryrobot.com/blog/2008/10/14/recursive-locks-will-kill-you/) they [should](http://www.zaval.org/resources/library/butenhof1.html) be [considered](https://blog.stephencleary.com/2013/04/recursive-re-entrant-locks.html) [harmful](https://inessential.com/2013/09/24/recursive_locks)
 
@@ -681,33 +683,120 @@ Necessary background concepts:
 	> With a sufficient number of users of an API, it does not matter what you promise in the contract. All observable behaviors of your system will be depended on by somebody.
 -->
 
-### Layering and Structure
+# OS Design and Isolation
 
-- Layering as a fundamental system structuring technique ([THE](https://dl.acm.org/doi/10.1145/363095.363143) OS)
+How do the previously discussed software engineering concepts apply to systems?
+Now that we understand the design goals and constraints of systems, we'll move on to understanding how OSes apply these designs to hardware.
+At the highest level, OSes provide the following major functions:
 
-	0. interrupts + scheduling
-	1. memory allocation
-	2. console
-	3. I/O (paging/buffering)
-	4. user programs
-	5. "the user"
+1. *sharing* of hardware between different principals,
+2. providing *functionality, abstractions, and services* for principals to harness, and
+3. ensuring *protection* between principals.
 
-	Motivated by multiple desirable properties:
+First, lets go over some high-level, necessary background concepts.
+We've discussed how systems, from a software engineering perspective, must consider modularity and abstraction, and be careful in the interfaces that they provide to manipulate their resources.
+Now we're going to pivot into the question of **what this means for system construction**.
+We've used a lot of terminology and referenced a lot of ideas, but now we're going to be a little more concrete.
+First, some definitions:
 
-	- testing via layers
-	- restricted reasoning about 1. current layer, and 2. the *abstraction* of lower layers (which have already been reasoned about).
-	- isolation is cross cutting
+1. *Resources* are the means by which we can access and modify the system.
+2. An *abstraction* is a set of resources and set of operations defined by an *interface* (which might include not just functions, but also `load`/`store`, etc...).
+3. A *module* is a self-contained body of software that uses encapsulation to hide its implementation, while exporting an abstraction with which other modules can harness its functionality.
+4. We describe the module that provides an abstraction to another through an interface as the *server* and the one that harnesses the interface as the *client*.
+5. A *principal* is the part of the system over which *trust* relationships are parameterized.
+	Does module $A$ trust module $B$ to not be faulty? to not be malicous? to not have any compromises? to use only its share of resources?
+	If the answer to any of these is "no", then $A$ and $B$ should be treated as separate principals, and should be mutually isolated -- thus motivating inter-principal isolation.
+	Note that different application modules rarely trust each other to be bug-free (thus the "process" abstraction in monolithic systems).
+6. A *service* is a module that provides an abstraction to potentially *multiple* other modules.
+	If the client modules are for separate principals, then to maintain inter-principal isolation, the service must be isolated from the clients.
+7. A *library* is a module that executes on behalf of the same principal as a module, and that provides an abstraction to that single module.
+	Thus the library module is loaded directly into the client module's protection domain.
+8. An *application* is a module that does *not* provide abstractions (interfaces) to other modules, and is associated with some principal.
+	It defines the policy that composes all of the abstractions it has access to from other modules (services and libraries).
+9. A *component* is a module that makes the exported interface, and its *dependencies* on other component interfaces explicit.
+	This enables a "component-based design" development style that involves putting together a jig-saw puzzle of interface exports and dependencies.
+10. A *protection domain* is the subset of resources that are accessible and/or modifiable to the modules within the protection domain.
+	Protection domains form the foundation of isolation in the system.
+11. A *process* is a set of modules in a protection domain.
+12. The *access control mechanism* of the system ensures modules can only access resources within their protection domain.
+13. The *access control policies* control how the protection domains of the system are formed, and can change.
+	This enables resources to not be shared in a manner that could weaken the security properties of the system (e.g. passwords being accessed by another user).
+14. If client protection domains compose server resources into higher-level abstractions, they might require passing the server's resources to their respective clients.
+	For example, the pages underlying files might be derived from a device driver module, and be passed to a file system; at that point the FS might want to share the page with an application (due to a `mmap` call).
+	This requires a mechanism to pass resources between modules called *delegation*.
+	When delegating access to a resource, the ability to further *delegate* the resource enables even the client to manage the resource (and pass it out to its clients).
+15. If resources can be delegated between modules, then the converse operation, *revocation* must be supported.
+	*Revocation* removes previously delegated access to a resource from a client.
+	If a delegated resource was delegated with the ability to delegate to other modules, a *tree* of delegations in created, and revocation must recursively revoke the entire subtree of delegations.
+16. The kernel is special in that it is a set of modules that have access to all system resources as provided by the (potentially virtual) hardware.
+	Thus, the kernel *must* define at least a subset of the access control mechanisms (e.g. page-tables), and must abstract the raw hardware mechanisms.
 
-	Limitations:
+In monolithic systems, the various services (modules) are compiled together, and resource sharing is encoded in the net of pointers that constitutes the kernel's data-structures.
+Revocation is much more of a communal process in which the different modules orchestrate through `free` APIs and reference counts to release resources.
+However, in micro-kernels, the structure of the protection domains can mimic that of modules.
+This raises the questions of how *delegation* and *revocation* can be supported, but also if this the benefit is worth the additional complexity.
+How can we evaluate which structure is a good fit for our system's requirements?
 
-	- Debugging of lvl 0 & 1 without printing?
-	- No memory allocation in scheduling?
-	- Where is a "thread" structure implemented?
-		Needed for scheduling, but also "associated" with memory allocations and I/O.
+One important aspect of system design is understanding the risk of erroneous behavior in each service's protection domain.
+If a service misbehaves (i.e. does not behave in accordance with specification and expected behavior), it will impact all of its clients, and potentially all of their clients, and so on.
+What increases the risk of this happening?
 
-- [Microkernels](http://people.cs.uchicago.edu/~shanlu/teaching/33100_fa15/papers/nucleus.pdf) as a structuring technique
-- Design via the separation of [mechanism and policy](https://dl.acm.org/doi/10.1145/1067629.806531)
-- Concurrency-driven event notification
+- Code that has higher inherent complexity (e.g kernels) is more difficult to get right.
+- Code not written by seasoned developers is more likely to have latent issues.
+- A larger body of code (many modules, or large modules) has a higher likelihood of having bugs.
+	History has shown that even highly-trained kernel developers have trouble keeping the massive body of code underlying modern monolithic kernels error free and reliable.
+- The list goes on and on.
+
+A healthy sense of humbleness might draw one to the conclusion that it is better to have many protection domains to minimize the scope of impact of any errant behaviors.
+However, this can increase the complexity of the system as the access control mechanisms, and the delegation and the revocation mechanisms become quite central to system design.
+
+### Atomic Elements of Hardware: Resources
+
+As we construct higher and higher-level resources, we must be cognizant of the lowest-level resources provided by the hardware.
+They are the starting point as we construct the rest of the system.
+
+Being concrete about resources, we can start by talking about those at the lowest-level:
+
+- cores and processing allocation over time
+
+	- each core's power level (frequency and voltage scaling)
+	- Inter-processor interrupts (IPIs) for inter-core event notification
+	- Timers and timer interrupts
+
+- Physical frames of memory
+- Interrupt lines
+
+	- Associating interrupt lines with devices (PIC programming)
+
+- Devices and busses
+
+	- PCIe/USB/SPI/I$^2$C/... mapping and communication
+	- virtual access to specific physical addresses -- e.g. through memory-mapped registers
+	- DMA transfers
+
+- Exception handlers
+
+	- page-faults, divide by zero, invalid instruction, etc...
+
+- Protection
+
+	- Page-tables and MMU programming
+	- Dual mode hardware and protection (sensitive/privileged instructions, kernel vs. user-level memory, and mode transitions -- [system calls](https://www.youtube.com/watch?v=xHu7qI1gDPA&list=TLPQMjIwNTIwMjA1MAN_H1P-DA))
+	- I/O MMUs and page-table association with devices
+	- Hardware virtualization acceleration
+
+In the end, we're mapping these resources up to the higher-level resources we're accustomed to.
+These include (but are, of course, not limited to).
+
+- processing: threads, processes
+- persistence and resource naming: files and the hierarchical namespace
+- communication: network sockets, IPC (e.g. pipes), shared memory
+- protection: processes, containers, hierarchical namespace access rights
+
+### Capability-Based OS Design
+
+The last two sections motivated
+
 
 ### Intuition: Vertical vs. Horizontal Isolation
 

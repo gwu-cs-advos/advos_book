@@ -41,6 +41,7 @@ The class' [syllabus and policies](https://www2.seas.gwu.edu/~gparmer/classes/20
 
 This document should be used as a guide to the class.
 It is not comprehensive enough to be a book, and is instead a painfully detailed outline.
+It is written to read more like (technically detailed) blog posts more-so than a book.
 We focus on providing a large number of references to enable the independent investigation of class issues.
 
 ## Class Organization

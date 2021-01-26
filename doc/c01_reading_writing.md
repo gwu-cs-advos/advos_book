@@ -7,7 +7,7 @@ Redistribution of this file is permitted under the GNU General Public
 License v2.
 -->
 
-# Interfaces and Design
+# Reading and Writing Code
 
 This section lays the foundation for understanding not only how to design systems, but also some of the many constraints that go into that design.
 These include a base-level understanding of software complexity on the micro- and macro-scale.
