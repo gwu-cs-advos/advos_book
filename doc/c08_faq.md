@@ -323,3 +323,65 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 	Not really.
 	Certainly Linux doesn't remove system calls.
 	So long as there are users of the API, to remove it you have to either 1. be willing to break existing applications (see Python's transition to 3.0), or 2. provide a reasonable transition plan to support the old functions in libraries (e.g. support the old APIs in a library by using underlying composable APIs of the other functions of the interface).
+
+## C2: A Study in Event Models: Demikernel and `libuv`
+
+## Demikernel Questions
+
+- Why have all of the complexity of merge/map/filter/sort?
+	These are convenient APIs that are meant to generate a higher-level programming API encouraging varies forms of composition.
+	As this is research, it absolutely is *not clear* if this complexity pays off.
+	We'll have to look at a variety of applications to judge this.
+- What is a scatter/gather array?
+	Instead of passing in an array of data, you pass in an array of references to separate arrays of data.
+	If you're "gathering" you asking for data to be sent out from one of these arrays of references by accessing each of the separate data arrays, in order.
+	If you're "scattering", you're asking to receive data that will be split across all of the subsequently referenced data arrays.
+	See `writev` and `readv` for more documentation.
+- Why are there so many different types of queues?
+	DK is using queues polymorphically here, so we can "speak" the queue API, and it can talk to disks, networks, or pipes, depending on the backing resource.
+	This is similar to the VFS API in UNIX.
+- Does kernel-bypass bring more security issues?
+	Yes.
+	As there is no isolation between I/O subsystems, and the application, so a bug in either will impact both.
+	That said, there is effectively a single application executing on the system, so at least such a bug will not span the data of multiple principals.
+- Can DK work with multiple applications?
+	Unlikely.
+	They would generally have to be in the same address space, and the "event loop" of DK would have to change to enable one application to block while another computes.
+	These goals are challenging when using kernel bypass.
+- Is avoiding blocking really that beneficial?
+	Blocking means that you have the overhead of interrupts, and mode transitions, which *are too much* in many data-center operations.
+	Polling avoids all of those overheads and enables the application to get the lowest-latency access to data at the lowest overhead.
+	The downside is that we're burning CPU cycles on polling, and preventing other applications for executing.
+- Instead of doing kernel bypass, could the kernel just export queues to user-level; would it still be fast?
+	Yes!
+	See the work by Jens Axboe on [`io_ring`](https://lwn.net/Articles/776703/) support that has [matured](https://lwn.net/Articles/810414/) quite a bit to do exactly this.
+	Writing a DK backend to `io_ring`s wouldn't be that challenging.
+	There would be a performance hit, for sure.
+	Additional overheads would include interrupts (that DK avoids using DPDK), copying data across user/kernel boundary, and mode transitions.
+	The latter would be minimized, most likely due to buffering (remember "data aggregation" as an optimization technique).
+- Generally, do we really get much better performance by doing kernel bypass?
+	If you're doing fast computations in response to packets, **yes**.
+	Networking interfaces can push data fast enough that at a maximum packet rate, you don't have enough time to service a single cache miss.
+	100Gb/s is an extraordinary data rate that is twice the throughput of the fastest current DRAM (see DDR5 [here](https://en.wikipedia.org/wiki/Double_data_rate#Relation_of_bandwidth_and_frequency))!
+	It is necessary to avoid mode transition and interrupt costs for such systems.
+
+	If your application does a fair amount of computation for a request (e.g. a webserver), then you'll get diminishing returns for saving the overheads of interrupts and mode transitions.
+	Consequently, the benefit is quite application-specific.
+	One domain that clearly benefits: network function virtualization -- where we push many of the router/smart network functionalities into software.
+
+## libuv Questions
+
+- Why all the wrappers around functions like thread operations?
+	Portability across systems.
+	You want to define a common API that doesn't have too large a semantic gap to the APIs exposed by all OSes you want to support.
+- Documentation specifies that you can run an event loop per thread.
+	Why?
+	Each event loop often implies blocking waiting for one of the events that has been registered.
+	If you're blocking waiting in "one of the event loops", you might never wake up.
+	If you don't when are you going to handle events from the "other loop"?
+	Really the more fundamental issue is that you have two different sets of resources that are separately blocked on.
+- Why does libuv support two separate callbacks for `uv_read_cb` and `uv_udp_recv_cb`?
+	Likely because UDP is a datagram-based protocol, so each packet has "framing".
+	Each packet is meant to received a single unit, rather than as part of a larger stream of all packets (as in TCP).
+	Thus two callbacks: the latter understands that the data passed in is a single packet.
+	If this hypothesis is correct, then it would be better named `uv_dgram_recv_cb` (note the `DGRAM` option for sockets that motivates the shortening of the word).
