@@ -150,7 +150,7 @@ Two examples, and some computational analogies:
 	It didn't have large glider wings to compensate for low air density, and instead had turbojet engines that could convert into ramjets (using only the pressure of air to drive the controlled explosion) to push it up to Mach 3.2.
 	As such it could ascend up to 85,000 feet.
 	It also was concerned with weight, thus it had no internal fuel blatter, instead relying on the fuselage panels to hold in the fuel.
-	Famously, it would lead fuel on the runway as the fuselage panels fit loosely until the air friction at high speeds would heat them up (and expanded them) to make a tight fit.
+	Famously, it would leak fuel on the runway as the fuselage panels fit loosely until the air friction at high speeds would heat them up (and expanded them) to make a tight fit.
 	In this way, much of the plane was constructed to withstand high temperatures: the leading tips of the SR-71 experienced enough friction to heat them up to 300 degress C, and jet fuel was chosen that had a high flash point so that it wouldn't spontaneously combust.
 	The aerodynamics of Mach 3.2 made maintaining lift at low speeds difficult, thus it would take off with only enough fuel (thus weight) to immediately rendezvous with a refueling tanker, and would land at 200 miles per hour using a parachute to slow itself down on reasonably lengthed runways.
 	Like the U-2, the SR-71 required unconventional trade-offs that would not be tenable in more general-purpose airplanes.
