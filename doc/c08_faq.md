@@ -385,3 +385,65 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 	Each packet is meant to received a single unit, rather than as part of a larger stream of all packets (as in TCP).
 	Thus two callbacks: the latter understands that the data passed in is a single packet.
 	If this hypothesis is correct, then it would be better named `uv_dgram_recv_cb` (note the `DGRAM` option for sockets that motivates the shortening of the word).
+
+# L3: Composite Resources
+
+- Does a component in which a thread executes have to have access to the thread's capability?
+	No.
+	A sane system will only let the scheduler have access to capabilities to threads; only the scheduler should have thread dispatching privileges!
+- How can scheduling work when it is more of a free-for-all of context switches?
+	Most components should not have access to the thread capabilities.
+	Only the scheduler should.
+	Thus the only context switches derive from the scheduler's context-switches (on thread capabilities), interrupt activations of threads on asynchronous activation end-points, and timer interrupts firing and switching back to the scheduler thread.
+
+	The key thing to understand is this:
+	we've discussed the *mechanisms* for access control (capability-based access), but *still must discuss the policy*.
+	For example, a necessary policy to have sanity in scheduler implementation is that the scheduler is *the only component with capabilities to the threads it schedules*, and to have all asynchronous activation end-points for the threads it schedules have the "parent" set to the scheduler's thread's end-point.
+	The mechanisms are not alone sufficient to implement a sane system.
+	Abstractions and organization must be *layered on top of the raw mechanisms* to derive predictable behavior.
+- It seems like we have a comparable number of resources now exposed to user-level rather than raw hardware mechanisms; have we made progress?
+	Is this better?
+	Yes, it is better.
+	Once we have provided the ability to harness and guide the raw hardware resources with *user-level, safe interfaces*, we have now enabled:
+
+	1. multiple user-level components to define how to use and orchestrate the resources in different ways;
+	2. system specialization by providing developers with the tools to manage resources in application-specific ways;
+	3. increased isolation in make the system more fault resilient and secure.
+
+- Do synchronous invocations avoid the kernel?
+	No!
+	They end up making effectively two system calls, thus go through the kernel twice -- once for invocation, and once for return.
+- How could you support virtualization on this system?
+	See the Nova system we'll go over quite a bit in this class.
+- How is isolation provided with synchronous invocations?
+	What if the thread crashes or goes into an infinite loop in the server?
+	The execution in the server cannot access the memory of the client.
+	A failure in the server does not necessarily cause a crash in the client, and vice-versa a client crash.
+	If there is a fault (or a perceived fault) in the server, it is possible to implement an exception model in which a "return" happens to the client, and executes and error path (e.g. a `catch` block).
+
+	Note that if the server goes into an infinite loop, the client will be impacted.
+	However, this is a limitation of *all synchronous APIs*.
+
+	There are other complications.
+	If we make a synchronous call while holding a lock in the client, the client is opening itself up to failures.
+	Such an action is tying the progress of the threads in the client, to progress in the server.
+	As such, critical sections should really not make synchronous invocations, unless you're willing to tie their progress together.
+- How does any of this work on multiple cores?
+	The scheduler thread must now consider multiple cores?
+	Synchronous invocations into the same component on multiple cores seems complicated?
+	There is a scheduler thread per-core, and schedulers can only switch to threads that are bound to that core.
+	There are other APIs to change which core a thread is bound to.
+	Scheduler threads can coordinate through shared memory, or by using inter-processor interrupts.
+	This situation is quite similar to how Linux implements its scheduling queues.
+
+	Synchronous invocations imply that servers must be concurrent and parallel.
+	They must use locks and consider races at all times.
+	This is a downside of synchronous invocations.
+- The kernel should not trust user-level but if you move the scheduler to user-level it must now trust it for proper scheduling; how can this be safe?
+	Microkernels general export most abstractions to user-level.
+	If a user-level file system doesn't work, then those applications the depend on it might experience faulty service.
+	This system is simply treating scheduling the same way -- put it in user-level and any service that depends on it might fail if the scheduler fails.
+	A big difference with the FS analogy is that not all components must depend on the FS, but all of them must depend on a scheduler.
+	Not discussed here is a mechanism (Temporal Capabilities -- i.e. capabilities for time) that enables there to be multiple schedulers in the system, and a fault in one only imples failures in the components the depend in it, but the other components can keep on running uninhibited.
+- Why do synchronous invocations, and why not just have a server thread that is communicated with?
+	We'll talk about this for about two weeks, but for now you can watch the [gory-level-of-details-preview](https://www.youtube.com/watch?v=_qrP8jQ-eoc).
