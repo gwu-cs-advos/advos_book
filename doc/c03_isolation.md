@@ -186,6 +186,23 @@ A few direct consequences of these considerations:
 Lets lay out a set of low-level abstractions for hardware resources that attempts to enable the necessary safety and security.
 Lower-level abstractions are close to the hardware resources, but the challenge is how to both provide low-level access, while enabling strong access control.
 
+> Aside: Why microkernels?
+>
+> Microkernels are generally used in domains that require heightened trust in the computational infrastructure.
+> For example:
+>
+> - Microkernels are the core of many autonomous vehicles through the QNX microkernel at the core of NVIDIA's "DriveOS".
+> - It was (is?) the OS in the security co-processors on iPhones to conduct authentication (fingerprint reader), payment processing (iPay), key management, and other sensitive operations.
+> - Modern Intel chips run [Minix in a Management Engine](https://www.zdnet.com/article/minix-intels-hidden-in-chip-operating-system/) (think of it like a hypervisor's hypervisor), meaning microkernels on servers/desktops/laptops are likely as common as monolithic systems.
+>
+> What's the common denominator?
+> Microkernels excel at being specializable, enabling powerful abstractions with little code (thus minimizing the risks of compromise), and, generally, being secure.
+> For example, seL4 is a *formally verified* OS, which means that we know (via mathematical proof) that it is bug-free, a powerful property.
+> We tend to simply not know that they are as common as they are simply because they aren't client/user-facing.
+>
+> Note that many of these domains will use a microkernel along-side a monolithic OS (e.g. Linux, OSX).
+> We'll look at a microkernel later that acts primarily as a hypervisor.
+
 ### Kernel Resources
 
 The [Composite component-based OS](http://composite.seas.gwu.edu) is a micro-kernel and provides a set of these abstractions.
