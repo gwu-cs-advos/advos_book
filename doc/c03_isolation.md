@@ -476,6 +476,9 @@ Importantly, it also emphasizes the core tenant of modularity when combined with
 > If you require some functionality, but don't have access to the resources to provide it, you must use a synchronous invocation call-gate to request the controlled logic of a more privileged component -- that has access to the required resources -- to provide that functionality for us.
 > This is the core of abstraction in systems.
 
+The first important realization is that most components (that aren't managing core kernel resources) will *only have access to the ability to leverage the abstractions of other components*, and to (of course) have direct access to only virtual memory.
+Only a smaller number of core system components will directly interact with the kernel resources (recall the separation of mechanism and policy, and the construction of many different levels of abstraction), and rest will request their service.
+Those components will ensure that those resources are only used in a manner according to their policies, thus ensuring their safe usage.
 This emphasizes the question, "how can we orchestrate ensuring that the proper resources are available only to those components that need them"?
 Composite answers this question in two ways:
 
