@@ -183,25 +183,27 @@ A few direct consequences of these considerations:
 - services isolated in separate protection domains require fast IPC facilities for modules to coordinate in a manner that mimics interface function invocations, and
 - the kernel should provide the *lowest-level*, *safe* abstractions to protect access to hardware resources possible to give services the ability to define the higher-level resources.
 
-Lets lay out a set of low-level abstractions for hardware resources that attempts to enable the necessary safety and security.
+In this section, we'll lay out a set of low-level abstractions for hardware resources that attempt to enable the necessary safety and security.
 Lower-level abstractions are close to the hardware resources, but the challenge is how to both provide low-level access, while enabling strong access control.
 
-> Aside: Why microkernels?
->
-> Microkernels are generally used in domains that require heightened trust in the computational infrastructure.
-> For example:
->
-> - Microkernels are the core of many autonomous vehicles through the QNX microkernel at the core of NVIDIA's "DriveOS".
-> - It was (is?) the OS in the security co-processors on iPhones to conduct authentication (fingerprint reader), payment processing (iPay), key management, and other sensitive operations.
-> - Modern Intel chips run [Minix in a Management Engine](https://www.zdnet.com/article/minix-intels-hidden-in-chip-operating-system/) (think of it like a hypervisor's hypervisor), meaning microkernels on servers/desktops/laptops are likely as common as monolithic systems.
->
-> What's the common denominator?
-> Microkernels excel at being specializable, enabling powerful abstractions with little code (thus minimizing the risks of compromise), and, generally, being secure.
-> For example, seL4 is a *formally verified* OS, which means that we know (via mathematical proof) that it is bug-free, a powerful property.
-> We tend to simply not know that they are as common as they are simply because they aren't client/user-facing.
->
-> Note that many of these domains will use a microkernel along-side a monolithic OS (e.g. Linux, OSX).
-> We'll look at a microkernel later that acts primarily as a hypervisor.
+### Why microkernels?
+
+Lets take a quick aside to justify why we're going to be talking so much about microkernels.
+Microkernels are generally used in domains that require heightened trust in the computational infrastructure.
+If things go wrong, then there is a loss of equipment or life, or there is a threat to the security of the important information.
+A few brief examples:
+
+- Microkernels are the core of many autonomous vehicles through the QNX microkernel at the core of NVIDIA's "DriveOS".
+- It was (is?) the OS in the security co-processors on iPhones to conduct authentication (fingerprint reader), payment processing (iPay), key management, and other sensitive operations.
+- Modern Intel chips run [Minix in a Management Engine](https://www.zdnet.com/article/minix-intels-hidden-in-chip-operating-system/) (think of it like a hypervisor's hypervisor), meaning microkernels on servers/desktops/laptops are likely as common as monolithic systems.
+
+What's the common denominator?
+Microkernels excel at being specializable, enabling powerful abstractions with little code (thus minimizing the risks of compromise), and, generally, being secure.
+For example, seL4 is a *formally verified* OS, which means that we know (via mathematical proof) that it is bug-free, a powerful property.
+We tend to simply not know that they are as common as they are simply because they aren't client/user-facing.
+
+Note that many of these domains will use a microkernel along-side a monolithic OS (e.g. Linux, OSX).
+We'll look at a microkernel later that acts primarily as a hypervisor.
 
 ### Kernel Resources
 
@@ -368,7 +370,21 @@ For example:
 - How do we make priority-based decisions about if we should execute a thread activated by an interrupt, or continue executing the pre-interrupt thread?
 - How do we orchestrate the management of a CPU across *multiple* component schedulers?
 
-Access control for time through [temporal capabilities](https://www2.seas.gwu.edu/~gparmer/publications/rtss17tcaps.pdf) was invented to solve these challenges.
+Access control for time through [temporal capabilities](https://www2.seas.gwu.edu/~gparmer/publications/rtss17tcaps.pdf) (or Tcaps) was invented to solve these challenges.
+For coordination between different schedulers, Tcaps attempt to make the following guarantees:
+
+- Each scheduler can maintain its own definition of inter-thread priority (e.g. fixed priority scheduler versus "nice"-based UNIX scheduling versus dynamic priority systems like Earliest-Deadline First).
+- Each scheduler is allocated spans of time that they can expend on thread execution, or delegate sub-spans to other schedulers.
+- Schedulers only have time to use for thread execution if they are delegated that time.
+- A scheduler, when delegating a span of time to another scheduler, strictly limits the interference for that span of time.
+
+In this context, *interference* has two aspects:
+
+1. the ability of a scheduler to *preempt* another^[Technically, this should read "the ability of a thread associated with a scheduler thread or an asynchronous activation end-point associated with that scheduler is able to preempt a similar thread associated with another scheduler", but I'm simplifying the wording here.] scheduler, thus *delay* its execution, and
+2. the amount of execution (i.e. the span of execution) a scheduler can expend before a timer forces a switch to another scheduler.
+
+For details, see the [RTSS paper](https://www2.seas.gwu.edu/~gparmer/publications/rtss17tcaps.pdf).
+
 
 ### Capability-based Protection and Delegation and Revocation
 
@@ -436,6 +452,44 @@ A valuable perspective on these resources is that they abstract the raw hardware
 	Resource tables limit the extent of accessible resources for each component, and they provide limited access to be able to define delegation and revocation policies.
 3. *Control flow* - how do we provide concurrency and parallelism in the system, and multiplex between principals.
 	Threads, asynchronous end-points, and synchronous call-gates enable components to control CPU allocations, and enable component-based exporting of resources to other
+
+## Component-based Design on Composite
+
+We've discussed the system's resources, and many of their core operations, but many questions remain.
+The system's core mechanisms, alone, don't ensure some notion of system safety.
+
+> The goal of the kernel's resource abstractions is to provide the sufficient semantics to be able to
+>
+> 1. construct systems that provide the safety and performance requirements of a specific system, while
+> 2. using capability-based access control to limit the scope of access to those resources.
+
+This means that we must also consider *how to create the components, and the access rights for each of those components* in the system to provide some notion of safety.
+An example that clearly demonstrates the need for component-based organization of resources is the use of thread capabilities and scheduling.
+If thread capabilities are spread throughout the system, how could a scheduler know which thread is execution at any point in time?
+This implies that we need to be careful about which components have access to thread capabilities.
+For a component scheduler to accurately control thread execution, it must be *the only component* with a capability to each of its threads^[We'll see this is not strictly true. If we are using [hierarchical scheduling](https://www2.seas.gwu.edu/~gparmer/publications/rtas11_hires.pdf) which creates scheduler relationships similar to virtual machines (i.e. a scheduler-per-VM, and also a system scheduler)].
+
+Put simply, the kernel's mechanisms require a *policy* defined by the higher-level abstractions to use them safely (and, indeed, to define what "safe" means).
+This re-emphasizes the importance of the system being able to *compose* the kernel's access control mechanisms -- capability-controlled access to resources, including resource-tables -- into higher-level access-control policies such as delegation and revocation, and to control which components can access which resources.
+Importantly, it also emphasizes the core tenant of modularity when combined with isolation to provide abstraction:
+
+> If you require some functionality, but don't have access to the resources to provide it, you must use a synchronous invocation call-gate to request the controlled logic of a more privileged component -- that has access to the required resources -- to provide that functionality for us.
+> This is the core of abstraction in systems.
+
+This emphasizes the question, "how can we orchestrate ensuring that the proper resources are available only to those components that need them"?
+Composite answers this question in two ways:
+
+1. A component-graph specification for which components should be in the system, what interfaces they export, which interfaces they depend on, which clients are dependent on which servers (related by an exported and depended-on interface), and what the component's core function is (scheduler, manager of the resource tables of other components, etc...).
+	This enables the *static configuration* of a system as a graph of coordinating components.
+	See "System Initialization" above.
+2. A system created with the previous static specification can provide all of the functionality to enable the *dynamic* creation of processes, and the abstractions to support them.
+	You could, for example, implement POSIX as a set of these components that enables the dynamic behavior of POSIX.
+
+It is perhaps quite surprising, but our focus is almost entirely on the former.
+In the cloud, technologies like the firecracker VMM, unikernels, and containers minimization are increasingly moving cloud services toward static configuration.
+In the embedded space, the static configuration of the system to minimize memory overhead is a long and popular tradition.
+All that is to say that when resource constraints and optimizations are the most important and constrained, static configuration is quite important.
+As that corresponds well to the main domains in which microkernels find the most utility, so it is no surprise that Composite focuses on static configuration.
 
 ## Intuition: Vertical vs. Horizontal Isolation
 
