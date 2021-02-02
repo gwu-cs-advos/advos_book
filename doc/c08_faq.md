@@ -326,7 +326,7 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 
 ## C2: A Study in Event Models: Demikernel and `libuv`
 
-## Demikernel Questions
+### Demikernel Questions
 
 - Why have all of the complexity of merge/map/filter/sort?
 	These are convenient APIs that are meant to generate a higher-level programming API encouraging varies forms of composition.
@@ -369,7 +369,7 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 	Consequently, the benefit is quite application-specific.
 	One domain that clearly benefits: network function virtualization -- where we push many of the router/smart network functionalities into software.
 
-## libuv Questions
+### libuv Questions
 
 - Why all the wrappers around functions like thread operations?
 	Portability across systems.
@@ -386,7 +386,7 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 	Thus two callbacks: the latter understands that the data passed in is a single packet.
 	If this hypothesis is correct, then it would be better named `uv_dgram_recv_cb` (note the `DGRAM` option for sockets that motivates the shortening of the word).
 
-# L3: Composite Resources
+## L3: Composite Resources
 
 - Does a component in which a thread executes have to have access to the thread's capability?
 	No.
@@ -447,3 +447,5 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 	Not discussed here is a mechanism (Temporal Capabilities -- i.e. capabilities for time) that enables there to be multiple schedulers in the system, and a fault in one only imples failures in the components the depend in it, but the other components can keep on running uninhibited.
 - Why do synchronous invocations, and why not just have a server thread that is communicated with?
 	We'll talk about this for about two weeks, but for now you can watch the [gory-level-of-details-preview](https://www.youtube.com/watch?v=_qrP8jQ-eoc).
+
+## C3: Composite Runtime

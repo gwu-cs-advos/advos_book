@@ -587,7 +587,280 @@ Lets revisit the examples:
 - $\mu$-kernels are complicated here, and I'll delay their discussion till we talk about component-based systems.
 	The key insight is that the protection domains in the system define if we are using vertical or horizontal isolation by controlling the inter-protection-domain relations, and which protection domains are in charge of what resources.
 
-### Questions
+## Sample RTOS API
+
+Lets look at a simple RTOS API that we might think about constructing using the `crt`.
+At its core, an RTOS focuses on creating threads, and coordinating between them.
+Not much else is required.
+On small embedded systems, the I/O is often accessible enough that the device driver is implemented in a thread.
+The API below expands on the traditional RTOS API by adding processes, and an event handling API.
+It strives to be composition and orthogonal.
+Generally APIs are not blocking, and one must use the event API to block awaiting concurrent events.
+
+**Error Codes.**
+
+```c
+const int	EIO     = -1;	/* I/O error */
+const int	EBADF   = -2;	/* Bad file number */
+const int	ENOMEM  = -3;	/* Not enough core */
+const int	EACCES  = -4;	/* Permission denied */
+const int	EFAULT  = -5;	/* Bad address */
+const int	EINVAL  = -6;	/* Invalid argument */
+const int	ERANGE  = -7;	/* Math result not representable */
+const int 	ENOBUFS = -8;	/* No buffer space available */
+const int 	ENOTSUP = -9;	/* Not supported */
+const int	EAGAIN	= -10;	/* Try again */
+```
+
+**Process Management.**
+
+```c
+typedef size_t proc_t;
+
+typedef enum {
+	SCHEDP_NOOP = 0,
+	SCHEDP_PRIO,  /* fixed priority */
+	SCHEDP_RPRIO, /* priority relatively higher than current thread */
+	/* priority relatively lower (not numerically) than current thread */
+	SCHEDP_RLPRIO,
+	SCHEDP_DEADLINE,    /* if != window */
+	SCHEDP_BUDGET,      /* exec time */
+	SCHEDP_WINDOW,      /* period */
+	SCHEDP_PROPORTION,  /* percent required */
+	SCHEDP_WEIGHT,      /* proportion compared to other */
+	SCHEDP_IDLE,        /* idle thread: internal use only */
+	SCHEDP_INIT,        /* initialization threads: internal use only */
+	SCHEDP_IPI_HANDLER, /* IPI handler thread: internal use only */
+	SCHEDP_TIMER,       /* timer thread: internal use only */
+	SCHEDP_CORE_ID,     /* create the thread on the target core */
+	SCHEDP_MAX          /* maximum value */
+} sched_param_type_t;
+
+typedef struct {
+	sched_param_type_t type;
+	uint16_t val;
+} sched_param_t;
+
+//Process/Thread Flags
+const size_t THREAD_STACK_4K = 1;
+const size_t THREAD_STACK_1M = 2;
+const size_t THREAD_NO_JOIN  = 4;
+
+// create from a filesystem program identified by `elf_image_path`
+proc_t pid = process_create_fs(char* elf_image_path, sched_param_t[] params, size_t num_params, size_t[] resources, size_t num_resources, size_t flags);
+//=0 is error
+proc_t pid = process_create(void* elf_image, size_t elf_length, char* name, sched_param_t[] params, size_t num_params, size_t[] resources, size_t num_resources, size_t flags);
+//=0 is error
+void process_exit(int status);
+int status = process_get_exit_status(proc_t pid);
+//<0 is error: EBADF, EAGAIN, EINVAL
+```
+
+`pid`s can be added to the notification API to block on process termination.
+
+**Thread Management**
+
+```c
+typedef size_t thread_t;
+
+thread_t tid = thread_create(void *entry_point, sched_param_t[] params, size_t num, size_t flags);
+//=0 is error
+int result = thread_set_params(sched_param_t[] params, size_t num);
+//<0 is error: EINVAL, EACCES
+int result = thread_kill(thread_t tid);
+//<0 is error: EINVAL, BDADF
+void thread_exit(int status);
+int status = thread_get_exit_status(thread_t tid);
+//<0 is error: EBADF, EAGAIN, EINVAL
+```
+
+`tid`s can be added to the notification API to block on thread termination.
+
+**Channels.**
+
+```c
+typedef size_t chan_t;
+typedef size_t chan_s_t;
+typedef size_t chan_r_t;
+
+//channel flags
+typedef enum {
+	CHAN_SPSC  = 1,
+	CHAN_MPMC  = 2,
+	CHAN_BLOCK = 4
+} chan_flags_t;
+
+struct channel_status {
+	//Currently unknown
+};
+
+chan_t cid = channel_create(size_t type_size, size_t queue_length, char* ch_name, chan_flags_t flags); //Allowed flags: CHAN_SPSC,CHAN_MPMC
+//=0 is error
+chan_r_t rcid = channel_get_recv(chan_t cid);
+//=0 is error
+chan_s_t scid = channel_get_send(chan_t cid);
+//=0 is error
+chan_r_t rcid = channel_retrieve_recv(size_t type_size, size_t queue_length, char* ch_name);
+//=0 is error
+chan_s_t scid = channel_retrieve_send(size_t type_size, size_t queue_length, char* ch_name);
+//=0 is error
+int result = channel_close(size_t scid/rcid);
+//<0 is error: EBADF
+int result = channel_destroy(chan_t cid);
+//<0 is error: EBADF
+int result = channel_send(chan_s_t scid, void* data, size_t len, chan_flags_t flags);
+//<0 is error: EBADF, EFAULT, EINVAL, ENOBUFS. >=0 is size sent.
+int result = channel_recv(chan_r_t rcid, void* buf, size_t len, chan_flags_t flags);
+//<0 is error: EBADF, EFAULT, EINVAL. >=0 is size recieved.
+int result = channel_get_status(size_t rcid/scid, struct channel_status* status);
+//<0 is error: EBADF, EFAULT
+```
+
+`rcid`s and `scid`s can be added to the notification API to block on events about channels.
+
+**Time and Timers.**
+
+```c
+typedef size_t timer_t;
+
+struct time {
+	uint64_t sec;
+	uint32_t usec;
+}
+
+
+void time_current(struct time* result);
+void time_create(struct time* a, uint64_t sec, uint32_t usec);
+int result = time_add(struct time* a, struct time* b); //a+=b
+//<0 is error: ERANGE
+int result = time_sub(struct time* a, struct time* b); //a-=b
+//<0 is error: ERANGE
+uint32_t nsec = timer_precision();
+timer_t tid = timer_create();
+//=0 is error
+int result = timer_start(timer_t tid, struct time* time);
+//<0 is error: EBADF, EFAULT, EINVAL
+int result = timer_periodic(timer_t tid, struct time* offset, struct time* period); //first expiration is at offset, then offset+period, offset+2*period, etc
+//<0 is error: EBADF, EFAULT, EINVAL
+int result = timer_cancel(timer_t tid);
+//<0 is error: EBADF
+int result = timer_free(timer_t tid);
+//<0 is error: EBADF
+```
+
+`tid`s can be added to the notification API to wait for the timer.
+
+We anticipate tracking time relative to system boot at least initially.
+
+**Synchronization.**
+
+```c
+typedef size_t sem_t;
+
+const uint32_t MUTEX_RECURSIVE = 0x0001;
+
+sem_t sid = semaphore_create(usize_t init_value, size_t flags);
+//=0 is error
+int result = semaphore_take(sem_t sid);
+//<0 is error: EBADF
+int result = semaphore_try_take(sem_t sid);
+//<0 is error: EBADF, EAGAIN
+int result = semaphore_give(sem_t sid);
+//<0 is error: EBADF
+int result = semaphore_destroy(sem_t sid);
+//<0 is error: EBADF
+
+typedef size_t mutex_t;
+
+mutex_t mid = mutex_create(size_t flags);
+//=0 is error
+int result =  mutex_lock(mutex_t mid);
+//<0 is error: EBADF
+int result = mutex_try_lock(mutex_t mid);
+//<0 is error: EBADF, EAGAIN
+int result = mutex_unlock(mutex_t mid);
+//<0 is error: EBADF
+int result = mutex_destroy(mutex_t mid);
+//<0 is error: EBADF
+```
+
+`sid`s and `mid`s can be added to the notification API to block until semaphore or mutex is available.
+
+**Memory Management.**
+
+```c
+void* mem = mem_get_pages(void* at_addr, size_t length, size_t flags); //flags unused
+//=0 is error. >0 is ptr to memory.
+int result = mem_free_pages(void* at_addr, size_t length);
+//<0 is error: EINVAL
+int result = mem_shared_create_named(void* at_addr, size_t length, char* name, size_t flags); //flags unused
+//<0 is error: EINVAL, ENOMEM
+void* mem = mem_shared_map_named(char* name, size_t flags); //flags unused
+//=0 is error. >0 is ptr to memory.
+int result = mem_shared_destroy_named(char* name);
+//<0 is error: EINVAL
+size_t rid = mem_shared_create_anon(void* at_addr, size_t length, size_t flags); //flags unused
+//=0 is error. >0 is resource id
+void* mem = mem_shared_map_anon(size_t id, size_t flags); //flags unused
+//=0 is error. >0 is ptr to memory.
+int result = mem_shared_destroy_anon(size_t id);
+//<0 is error: EINVAL
+```
+
+`at_addr` may be NULL, if you don't care.
+
+**Console I/O.**
+
+```c
+void io_print(char* msg);
+```
+
+**Event Handler Service.**
+
+```c
+typedef enum event_types {
+    EVT_NONE = 0,
+    EVT_ERROR= 1,
+    EVT_CHAN_READ = 2,
+    EVT_CHAN_WRITE = 3,
+    EVT_CHAN_CLOSE = 4,
+    EVT_TIMER = 5,
+    EVT_PROC_TERM = 6,
+    EVT_THREAD_TERM = 7,
+    EVT_SEM_TAKE = 8,
+    EVT_SEM_GIVE = 9,
+    EVT_SEM_DEST = 10,
+    EVT_MUTEX_LOCK = 11,
+    EVT_MUTEX_UNLOCK = 12,
+    EVT_MUTEX_DEST = 13,
+} event event_t;
+
+
+struct event_info {
+	size_t event_src_id;
+	size_t event_type; //EVENT Types
+}
+
+// handle to an event
+typedef size_t event_t;
+
+event_t event_create(uint32_t n_sources);
+//<0 is error
+int result = event_add(event_t eid, size_t src, size_t flags); //flags unused
+//<0 is error: EBADF, EINVAL, ENOMEM
+int result = event_remove(event_t *eid, size_t src, size_t flags); //flags unused
+//<0 is error: EBADF, EINVAL
+int result = event_delete(event_t *eid);
+//<0 is error: EBADF
+int result = event_wait(event_t *eid, struct event_info[] events, size_t num); //blocking
+//<0 is error: EBADF, EFAULT, EINVAL
+int result = event_check(event_t *eid, struct event_info[] events, size_t num); //non-blocking
+//<0 is error: EBADF, EFAULT, EINVAL
+```
+
+`struct event_info[]` allows batching, which reduces the context-switch cost compared to an event returned per call.
+
+## Questions
 
 The OS must include services that provide functionality to multiple application principals.
 This raises more questions than you'd likely expect:
