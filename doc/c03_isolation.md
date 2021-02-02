@@ -424,14 +424,22 @@ These six operations, and the memory retyping to be discussed in the next sectio
 ### Memory Management
 
 One of the most conceptually challenging aspects of the Composite kernel API has to do with the *typing of memory* which is strongly inspired by [similar support in sel4](http://sigops.org/s/conferences/sosp/2013/papers/p133-elphinstone.pdf).
-Memory pages in page-tables can be of three different *types*: **UnTyped Memory** (UTM), **Kernel Memory** (KM), or **User Virtual Memory** (UVM).
-The goal of typing memory is to guarantee that each page of memory can be *either* accessible through direct `load`/`store` instructions from user-level *or* as a kernel data-structure, but *never as both*.
-This protects the integrity of kernel memory.
+
+![Memory pages in page-tables can be of three different *types*: **UnTyped Memory** (UTM), **Kernel Memory** (KM), or **User Virtual Memory** (UVM). The goal of typing memory is to guarantee that each page of memory can be *either* accessible through direct `load`/`store` instructions from user-level *or* as a kernel data-structure, but *never as both*. This protects the integrity of kernel memory.](resources/memory_state_machine.png)
+
 Thus, the retype operation will fail, for example, if there shared memory mappings of virtual memory, and memory is retyped into UTM.
 The *retype* kernel operation -- that operates only on resources accessible in a component's page-tables -- only allows transitions from KM $\to$ UTM, UVM $\to$ UTM,$UTM $\to$ UVM, and UTM $\to$ KM.
 UVM is mapped into page-tables for component access.
-KM is used when kernel data-structures are *activate*d.
+KM is used when kernel data-structures are `activate`d, and then later when they are `deactivate`d, then the memory can be retyped into UTM.
 KM must be provided to those operations to back the kernel structure (e.g. to back a thread's in-kernel memory).
+
+A fundamental guarantee made by this design:
+
+> The kernel's integrity can not be compromised by any user-level actions.
+> Memory used as kernel data-structures (resource table nodes, threads, and TCaps) cannot be accessible from user-level.
+
+The (conceptual) reference counts are key to this guarantee.
+We must constrain memory to only be retyped when we know that it is no longer referenced either at user-level, or in kernel data-structures.
 
 ### System Initialization
 
@@ -596,6 +604,10 @@ On small embedded systems, the I/O is often accessible enough that the device dr
 The API below expands on the traditional RTOS API by adding processes, and an event handling API.
 It strives to be composition and orthogonal.
 Generally APIs are not blocking, and one must use the event API to block awaiting concurrent events.
+
+This is a viewpoint on a *simple* system that you could almost view as a stripped-down, C version of the core of the `go` language.
+RTOSes typically try to be quite small to fit onto the limited resources of embedded systems.
+This API accommodates processes to enable the isolation necessary when hooking IoT devices up to the Internet.
 
 **Error Codes.**
 
