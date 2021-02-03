@@ -5,9 +5,10 @@ Table of Contents:
 - [Overview](./doc/c00_title.md)
 - Design and Implementation
 
-	- [reading and writing code](./doc/c01_reading_writing.md)
-	- [high-level interface and module design](./doc/c02_design.md)
-	- [case studies](./doc/c03_case_studies.md)
+	- [Reading and writing code](./doc/c01_reading_writing.md)
+	- [High-level interface and module design](./doc/c02_design.md)
+	- [Microkernel, capability-based OS design](./doc/c03_isolation.md)
+	- [Case studies: UNIX, Middleware systems, Plan 9](./doc/c04_case_studies.md)
 
 - [Security](./doc/c05_security.md)
 - [Parallelism](./doc/c07_parallelism.md)
