@@ -449,3 +449,5 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 	We'll talk about this for about two weeks, but for now you can watch the [gory-level-of-details-preview](https://www.youtube.com/watch?v=_qrP8jQ-eoc).
 
 ## C3: Composite Runtime
+
+There are a lot of questions, but they are addressed in class, and in future weeks.
