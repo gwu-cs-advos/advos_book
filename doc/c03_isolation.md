@@ -574,16 +574,7 @@ When you need to describe something with high specificity, you kind of have to m
 	These objects might include files, pages of memory, network sockets, IPC end-points, etc... and $p_j$ is the system service managing those abstractions.
 - $n(p_i, p_j) = \{o_x, \ldots\} \subseteq o(p_j)$ is the set of objects accessible via synchronous invocations from $p_i$ and provided by $p_j$ (where as we'll see soon, $p_j \in d^{\text{sync}}(p_i)$).
 
-Note that the dependency relation is *transitive* for a subset of the dependency types, $\{\text{mem, cpu, strm}\}$ such that $\forall_{o \in \text{\{mem, cpu, strm\}}} p_j \in d^o(p_i) \wedge p_k \in d^o(p_j) \to p_k \in d^o(p_i)$.
-All protection domains in the system that provide memory and CPU time must be depended on continuously to provide those services.
-For streaming dependencies, all "upstream" protection domains must continue to do their job for a process to do useful work.
-
-The rest of the dependency relations are more local, thus are not transitive (including $\{sync, async, boot\}$).
-If $p_c$ can make a synchronous invocation to $p_s$, it does *not* mean that $p_c$ can  make synchronous invocations to $p_{s'}$, despite $p_{s'} \in d^{\text{sync}}(p_s)$.
-Note that this is *essential* as it supports information hiding and separation of privileges -- a user application should *not* be able to ask a driver to directly write to disk; it *must* go through the file system to validate the request!
-Similar arguments can be made for $\text{async}$ and $\text{boot}$.
-
-Lets revisit the examples:
+### System Isolation Examples
 
 - Monolithic system is simply a set of processes $A = P \textbackslash p_{\text{kern}}$ (note that $A\textbackslash a$ means the set resulting from removing $a$ from set $A$), and the kernel $p_{\text{kern}}$, where $\forall_{p_i \in A, o \in \text{op}} d^o(p_i) = p_{\text{kern}}$.
 	This shows the centrality and concentration of trust in the large kernel.
@@ -594,6 +585,34 @@ Lets revisit the examples:
 	As such, VMs form a highly *hierarchical* structure.
 - $\mu$-kernels are complicated here, and I'll delay their discussion till we talk about component-based systems.
 	The key insight is that the protection domains in the system define if we are using vertical or horizontal isolation by controlling the inter-protection-domain relations, and which protection domains are in charge of what resources.
+
+### Understanding Trust Properties
+
+I've actually avoided defining *trust* up till now.
+We'll dive in at this point.
+"Trust" implies a *coupling* between protection domains: if $p_c$ *trusts* $p_s$, the key implication is that the actions of $p_s$ impact the ability of $p_c$ to implement its specification (i.e. its intended behavior).
+Not all means of coupling protection domains together are as "tight".
+If $p_s$ provides scheduling services for $p_c$, then it can threaten the liveness of $p_c$, but not (outside of real-time systems) generate incorrect output.
+If $p_s$ provides functional services for $p_c$ (e.g. a filesystem or networking stack), then a failure in $p_s$ will likely make meeting $p_c$'s specification impossible, but won't necessary cause it to fail.
+In that case, perhaps rebooting $p_s$ might remediate the system.
+If, instead, $p_s$ has access to read and write to $p_c$'s memory, then a failure in $p_s$ can trivially cause a fault in $p_c$ that is unrecoverable (due to arbitrarily overwriting its memory).
+The isolation model above discriminates between different types of dependencies so that we can push into the implications.
+We want to understand how a failure or compromise impacts a client.
+
+Note that the dependency relation is *transitive* for a subset of the dependency types, $\{\text{mem, cpu, strm, sync}\}$ such that $\forall_{o \in \text{\{mem, cpu, strm\}}, p_j, p_k, p_i \in P} (p_j \in d^o(p_i) \wedge p_k \in d^o(p_j)) \to p_k \in d^o(p_i)$.
+All protection domains in the system that provide memory and CPU time must be depended on continuously to provide those services.
+For example, an application depends on its OS scheduler for CPU time, and if executing in a VM, the OS scheduler depends on the hypervisor scheduler.
+It is clear that the application is dependent not just on its OS scheduler, but also on the hypervisor scheduler.
+For streaming dependencies, all "upstream" protection domains must continue to do their job for a process to do useful work (think of a UNIX pipe).
+Synchronous communication relationships between components are complicated.
+The transitivity of these operations demonstrates that blocking after $N$ invocations, impacts all components along the path.
+It does *not* strictly mean that the communication relationships are transitive -- $p_i$ does not necessarily directly communicate with $p_k$ (that is determined by the access control policies around communication of the system).
+
+The rest of the dependency relations are more local, thus are not transitive (including $\{\text{async, boot}\}$).
+The key property of asynchronous relationships that enables this is that despite a chain of communicating protection domains, the control flow of one doesn't necessarily prevent another from executing.
+
+- Synchronous interactions ($\text{sync}$) between protection domains implies a *functional, and control coupling* of the client to the server, and a *data coupling*.
+- Asynchronous interactions ($\text{async}$) between protection domains implies a *functional coupling* between client and server.
 
 ## Sample RTOS API
 

@@ -448,6 +448,68 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 - Why do synchronous invocations, and why not just have a server thread that is communicated with?
 	We'll talk about this for about two weeks, but for now you can watch the [gory-level-of-details-preview](https://www.youtube.com/watch?v=_qrP8jQ-eoc).
 
-## C3: Composite Runtime
+## L4: Capability Delegation and Revocation
 
-There are a lot of questions, but they are addressed in class, and in future weeks.
+- How does moving the delegation tree to user-level help the $O(N)$ costs?
+	Costs in server are still caused by clients, right?
+	The clients can still do many delegations that will result in revocation taking a long time, in the context of the revoking thread.
+	In that sense, this doesn't help.
+	However, now the $O(N)$ cost is not incurred while in the kernel.
+	Many microkernels execute non-preemptively, and for them, moving this cost to preemptible user-level is quite useful.
+- Related: aren't there still $O(N)$ costs in the capability manager?
+	Yes!
+	We have implemented the capability manager to limit the number of delegations to keep this at $O(1)$.
+- How can it be safe to have a component with access to its own capability tables?
+	It can modify the resources accessible from its own capability-table, but can only add resources that it already has access to (e.g. by retyping)!
+	Thus, being able to modify our own resource table does not give us scope of access beyond our own resource tables.
+	It just allows us to retype, and use resources we already have access to.
+- If we don't have recursive revocation, come up with an example of "bad things" happening.
+	If we give access to a page to a "kernel" in a VM-like subsystem, and then, that kernel delegates the page to an "application", and the VM fails, we have a sticky situation.
+	If we revoke the kernel's page, we really *need* to have that revoke operation remove the application's access as well.
+	Fundamentally, we don't track the delegation to the application, so something in the system must track the delegation tree and revoke it from the application.
+- Does recursive revocation use recursion?
+	No.
+	It has also been called "nested revocation", which might be less misleading.
+	It is always implemented using an iterative algorithm.
+- Can you revoke only a single other protection domain's access?
+	Yes you often can.
+	You can target a specific delegation to remove the subtree rooted at that delegation.
+- Can there be loops in the delegation tree (back to a "parent" component)?
+	"Yes" in the sense that the same component can exist in the same tree.
+	They can actually be tight loops.
+	A component can delegate a page to itself, meaning you have shared memory with yourself, and both delegations are in the same components.
+	Comparably, two components could delegate a page to each other.
+	"No" in the sense that the tree cannot become a cycle.
+	Two mappings in the same component are still a tree of delegations.
+- Is there a non-copying version of delegation in which the previous component does not retain control?
+	Historically, this is called "grant", and is not supported by most capability-based OSes.
+	Composite does support the equivalent of this.
+	Instead of *copying* a capability across capability tables, there is also a *move* operation.
+- Can a child revoke the resource given by its server?
+	Does this remove it from the server?
+	No, it cannot.
+	You can only revoke the subtree of delegations rooted at your capability.
+	If a server delegates to the child, then the server's capability is closer to the root of the tree, rather than in the subtree.
+
+### Other
+
+- With only a single scheduler, how does multi-core scheduling work?
+	A single scheduler can be executed in parallel on multiple cores, similar to how processes can be multi-threaded.
+	In this case, the (single) scheduler can partition its runqueue so that each core's runqueues track only threads that are "bound" to that core.
+- How does moving a thread from a core onto another work?
+	We have not implemented this yet.
+	We will create a thread operation to change the core a thread is bound to.
+- How does permission to access a device work?
+	Is it a single capability?
+	It is not a single capability.
+	Usually devices have two components:
+
+	1. memory mapped I/O -- which is essentially a specific range of physical memory for which loads and stores are interpreted as reads and writes to device registers, and
+	2. interrupts which are hooked into using the vPIC.
+
+	So capabilities to use devices boil down to having the memory mappings in a components virtual memory to the physical memory of the device, and the interrupt hooked up to a asynchronous receive end-point that is used to send interrupt notifications.
+- Why are device drivers the most unreliable part of the OS, generally?
+	They are often written by computer engineers that have less coding experience, and by people who are not kernel developers.
+- Why would we want a non-preemptive kernel?
+	It vastly simplifies the kernel to not have to consider preemptions at all lines of code.
+	Additionally, this combines with kernels that don't block as it means that we need only a single kernel stack per core, rather than per-thread.
