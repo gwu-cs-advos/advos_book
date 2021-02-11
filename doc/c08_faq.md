@@ -513,3 +513,81 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 - Why would we want a non-preemptive kernel?
 	It vastly simplifies the kernel to not have to consider preemptions at all lines of code.
 	Additionally, this combines with kernels that don't block as it means that we need only a single kernel stack per core, rather than per-thread.
+
+## L5: Memory Retyping and Management
+
+- Can you take memory that has been typed as UVM and eventually type it to KM at some later point?
+- When is memory cleared?
+	Whenever a kernel structure is `deactivate`d, or whenever a UVM is retyped into UTM.
+	As such, you know that the previous contents of the page will never be accessed as a different type.
+- If we want a slab/buddy allocator, we still have to have that logic; do we save anything by moving it to user-level?
+	We can have a complex memory allocator in a component, for sure.
+	However, we can also implement simple systems along-side that don't have to suffer from that complexity.
+- Example with radix trie and `cons` (esp. with the addr); how is the address used?
+	When we `cons` a second level page-table entry into the top-level page-table entry, we specify the address it should be `cons`ed at.
+	The top level node of the page-table essentially translates (on 32-bit x86) the highest 10 bits of the virtual address.
+	Thus when we specify the address for the second-level node to be hooked into, the top 10 bits of that address are the only relevant bits.
+- Where does the untyped memory come from?
+	It is added to the constructor's resource tables at boot time.
+	There are no APIs to allocate new untyped memory.
+	The constructor uses some amount of untyped memory to construct other components, then delegates the rest of UTM to the capmgr.
+- Why do we want superpages?
+	Pages larger than 4KiB are useful because of the TLB.
+	The TLB has a limited number of entries, $T$.
+	Thus you can think that the amount of virtual memory accessible through the TLB is $4096 \times\ T$.
+	If the application frequently accesses more than that value (i.e. its working set is larger), then you will get capacity TLB misses, which will slow the application down.
+	If pages are larger than that, say 2MiB or 1GiB, the amount of virtual memory that can be held in the TLB without misses is much higher.
+	So superpages are useful for applications that use a large amount of virtual memory (e.g. databases).
+- Can you take memory that has been typed as UVM and eventually type it to KM at some later point?
+	Yes.
+	The memory state machine we discussed means that you can move memory, over the lifetime of the system, between all of the states.
+- Why stop at UVM/KM/UTM?
+	Why not shared memory, etc...
+	Shared memory is effectively already tracked (if UVM and the `refcnt` > 1), so there is no need for a state for it.
+	The same is true for many of the other types of states that you might want.
+- Where do we store the reference counts?
+	In an array in the *kernel*, with one entry per system page.
+- Are there other, better, ways to determine complexity than lines of code?
+	See earlier in the book, we reference automatic metrics like cyclomatic complexity, but nothing is very perfect.
+	There is a very "human aspect" to complexity that is hard to capture in a metric.
+	Lines of code is a decent proxy, but far from perfect.
+	If a lot of the lines of code are in system initialization, we might not really want to count them toward system complexity as aren't executed in the dynamic execution of the system.
+- With what metrics should we evaluate an OS?
+	Generally: performance (e.g. efficiency, parallelism), trustworthiness, capability (does it have the features you'd like?), security and reliability, and predictability (ability to do computation by the time it is necessary).
+	It very much depends on your domain what you prioritize as it is generally impossible (given engineering optimizations for limited resources) to be strong in all of these.
+- What is kernel integrity?
+	There is no integrity if a user-level computation can either cause the kernel to crash, or corrupt its data-structures.
+	Integrity is preventing that from happening (bugs in the kernel aside).
+- Does memory retyping increase memory fragmentation?
+	In some ways, yes.
+	First, we track memory on a page-granularity, which effectively means that kernel data-structures are also sized to a page.
+	Other microkernels allow memory tracking down to much smaller sizes, but they also need to allocate more objects in memory (in Composite, it is just capability- and page-table nodes, threads, and tcaps).
+	Second, we might split UTM in the system between multiple components (i.e. different ranges of physical memory will be accessible to separate components), thus removing the possibility to have allocations that would have otherwise spanned the two ranges of UTM.
+	Partitioning UTM is generally done at a very low-level in the system (to partition different VMs, for example), and then the separate spans of UTM are separately managed by the different subsystems (VMs).
+	Thus, the fragmentation isn't an issue.
+	The issue that it presents is that a subsystem might not have enough memory to be successful, which is analogous to if you run a VM without giving it enough physical memory.
+- Is it possible to starve the kernel of memory?
+	The kernel doesn't generally allocate memory on its own without provocation.
+	Generally, it allocates memory *on behalf of* an application.
+	This mechanism could mean that user-level doesn't provide any kernel-typed memory to, for example, allocate a thread.
+	However, this is generally OK.
+	If an application is trying to create a thread, it should *provide the memory for creating that thread (or have someone delegate that memory on its behalf)!!!*.
+	The core of the memory retyping is that an application should verify it has access to some memory resource before using it -- a relatively intuitive notion.
+	Memory retyping simply takes this intuition and *also applies it to kernel allocations on behalf of the application*.
+- If we want a slab/buddy allocator, we still have to have that logic; do we save anything by moving it to user-level?
+	One can still implement subsystems that *do not require that logic*, thus can avoid the complexity.
+	Other subsystems (e.g. running Linux) can include that complexity if they want it.
+	The general idea is that if we require complexity in the kernel, then the entire system must "suffer" for that original sin.
+	If we can move the *option* of having the complexity to user-level, and enable competing implementations, then you only pay the cost if you want it.
+	The constructor doesn't need it.
+	The capability manager doesn't need it.
+	Therefore, we can increase the reliability and simplicity of those subsystems that really must be trusted.
+- Can a component grant another component some memory like it can with capability?
+	Yes.
+	UTM, KM, and UVM are all tracked as normal resources in the component's resource tables.
+	Normal methods of copying/moving/removing access to these resources are enabled.
+- If components have to manage their own policies for managing memory, how does this affect application development complexity?
+	The `cos_kernel_api` which is used by `crt` provides the logic for doing all of this, so you can judge how much that makes applications more complex.
+	It is often the case that we will want to delegate the responsibility for managing memory to another component, so that it can do allocations for us.
+	This is a large part of what the current capability manager does.
+	This enables the manager to split the memory, in accordance with demand, among multiple components, rather than requiring that we strictly partition the memory between applications.
