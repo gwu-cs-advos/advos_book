@@ -357,7 +357,7 @@ The above lock example that required the addition of the `transfer` function to 
 It demonstrates that sometimes you need to depart from orthogonality to satisfy niche situations, or provide optimizations.
 Others [have argued](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/beautiful.pdf) that locks should be replaced with abstractions such as software transactional memory (STM)^[Time has not replaced locks with STM. It is useful and powerful when used with functional data-structures, but much more challenging with general data-structures.].
 
-Another simple example: Linux has a huge variety of different ways to do IPC including signals, pipes, System V Shared Memory, mapped files, shared files, named pipes, UNIX domain sockets, TCP/UDP sockets, DBus, Binder (on Android), ...
+Another simple example: Linux has a huge variety of different ways to do IPC including signals, pipes, System V Shared Memory, mapped files, shared files, named pipes, UNIX domain sockets, TCP/UDP sockets, DBus, Binder (on Android), ...k
 When you sit down and try and write a service, which should you choose?
 
 A high-level way to think about SoC and orthogonality is to ask: given the set of *effects* that a function or an interface has on encapsulated state, the extent to which two functions or two interfaces are coupled (thus not following SoC/orthogonality) is commensurate to how much those effects impact state in a way similar to the other.
