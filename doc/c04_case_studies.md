@@ -278,14 +278,16 @@ This often results in DLL hell in which different applications require different
 Programming language libraries are linked and loaded into the process of the application.
 Modules structured as libraries have a number of implications, including both limitations and benefits:
 
-- Libraries must often be implicitly trusted.
+- *Limitations.*
+	Libraries must often be implicitly trusted.
 	Libraries must abide, by default, by the types of the programming language, thus might only have access to arguments passed into the library, allocated by the library, and globally stored by the library.
 	However, in practice, this offers little isolation.
 	Libraries can often access the entire OS's system call layer, thus access any system resources the application code has access to.
-	Further, most programming languages enable code to interact with C code (often for compatibility reasons), and some even focus on it (Python).
+	Further, most programming languages enable code to interact with C code (often for compatibility reasons), and some even focus on C inter-operation (Python).
 	Even more, synchronous function calls mean that infinite, or long loops in libraries consume the CPU resources of applications.
 	Clearly, libraries must be treated as being one-and-the-same as the application code, thus falling short of providing isolation.
-- Library functionalities are exported as typed sets of functions and data-types that the programming language understands.
+- *Benefits.*
+	Library functionalities are exported as typed sets of functions and data-types that the programming language understands.
 	This means that applications use direct function calls to communicate with the libraries.
 	This results in efficient function calls to the library's functions, even potentially inlining library code into the instruction stream of the application.
 	Importantly, it also means that data passed from application to library is directly interpreted by the library.
@@ -326,7 +328,7 @@ Specifically, the UNIX philosophy focuses on placing the eventual *policy* close
 Doing one thing well often implies that the building block is not self-sufficient, and must be combined toward some goal.
 Placing the composition capabilities close to the user increases the chance that the system will serve the user's purpose.
 However, it also tends to create *expert systems* that require that users (or logic closer to users) understand both the nuances of the building blocks, and of how to compose them.
-Contrast the command line enabling pipelined composition versus a spreadsheet -- you can do less with a spreadsheet, but it sure is easier to perform tabular computation.
+Contrast the command line which enables pipelined composition, versus a spreadsheet -- you can do less with a spreadsheet, but it sure is easier to perform tabular computation.
 Thus, the development style that creates monolithic applications generally provides a much stronger statement about policy -- it *fully encodes* the policy about how resources should be put to a purpose.
 This is un-UNIX-like, but leads to more opinionated, and more targeted applications.
 
@@ -342,18 +344,19 @@ All of these functions are spread across many different processes and libraries.
 We're going to focus on system daemons to understand how modern systems (i.e. most Linux distributions) have evolved.
 Historically, many daemons, each doing one(-ish) thing, would provide system services in UNIX:
 
-- bootup is always driven by `init` (which is generally executed from memory as file systems are not yet mounted at boot time), which does a number of things including mounting the initial filesystems, and `wait`ing for zombie processes without parents whom should wait for them, and starting other daemons/services *sequentially* via `initrc` (isn't this a lot for something that should be following "do one thing well"?),
+- bootup is always driven by `init` (which is generally executed from memory as file systems are not yet mounted at boot time), which does a number of things including mounting the initial filesystems, `wait`ing for zombie processes without parents whom should wait for them, and starting other daemons/services *sequentially* via `initrc` (isn't this a lot for something that should be following "do one thing well"?),
 - `cron` would execute commands at a time in the future, optionally on a repetitive schedule,
-- `update` (to periodically write out file-system superblocks),
-- [`getty`](https://en.wikipedia.org/wiki/Getty_(Unix)) to provide terminal services (input/output) and is part of the traditional `init`$\to$`getty`$\to$`login`$\to$`shell` sequence, and
-- `telnetd` and `sshd` to provide their corresponding remote terminals, and
-- Linux has added a few on its own:
+- `update` periodically writes out file-system superblocks,
+- [`getty`](https://en.wikipedia.org/wiki/Getty_(Unix)) provides terminal services (input/output) and is part of the traditional `init`$\to$`getty`$\to$`login`$\to$`shell` sequence, and
+- `telnetd` and `sshd` to provide their corresponding remote terminals.
 
-	- [`udev`](https://opensource.com/article/18/11/udev) enables dynamic device management -- for example how does the system know which driver, and which `/dev/*` entry to use for a thumb drive -- and
-	- the Network Manager to determine which wireless AP or wired connection to use
+Linux has added a few on its own including:
+
+- [`udev`](https://opensource.com/article/18/11/udev) which enables dynamic device management -- for example answer how does the system know which driver, and which `/dev/*` entry to use for a thumb drive, and
+- the Network Manager that determines which wireless AP or wired connection to use.
 
 At some point, it became apparent that running every network service on a system was a bad idea, and that they should instead potentially be started only when they were requested.
-Thus, `inetd` was created to understand which programs should reply to network requests on different ports, and will `fork`/`exec` the new service.
+Thus, `inetd` was created to understand which programs should reply to network requests on different ports, and to `fork`/`exec` the new service on demand.
 This was essentially a service who job was to define the semantics around starting and executing other services!
 Taking this idea to its logical conclusion, [`systemd`](https://lwn.net/Articles/777595/) is a complete rethink of [pid `1`](http://0pointer.de/blog/projects/systemd.html) (traditionally `init`) and is in some sense `inetd` for local services as well.
 It is highly influenced by OSX's [launchd](https://www.youtube.com/watch?v=SjrtySM9Dns).
@@ -365,16 +368,17 @@ About `systemd`:
 	D-Bus is used quite extensively as a message based transport and it supports both call/return, function-call style "invocation" of services (via remote procedure call or RPC), and [publisher/subscriber](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern)-based communication.
 	The latter enables a service to define a channel on which it can publish information, and for other services and applications to subscribe to the channel, thus receive all messages published to it.
 	There is no semblance of pipes here, but rather a typed API for inter-service, message-based coordination.
-	For example, the network manager publishes to its channel any wifi events (e.g. your desktop is disconnected from an access point), and applications (i.e. the icon displaying wifi status in the status-bar).
+	For example, the network manager publishes to its channel any wifi events (e.g. your desktop is disconnected from an access point), and applications (i.e. the icon displaying wifi status in the status-bar) consume this information.
 	Additional examples of these publication channels: energy events (battery status) and "file open" events ("the user wants to open a music file").
 
 	- [D-Bus](https://en.wikipedia.org/wiki/D-Bus) enables addressing of services, addressing of application-specific values (a cell in a spreadsheet), and the *typing* of interactions on the operations on those objects.
 	- It requires [types over bitstreams](https://pythonhosted.org/txdbus/dbus_overview.html), and [API specification](https://dbus.freedesktop.org/doc/dbus-api-design.html), thus ensuring that clients and servers understand the same arguments and return values.
 	- D-Bus is implemented not as a kernel abstraction, and instead as a single process on the system that others chat with via sockets.
-	- [`kdbus`](https://lwn.net/Articles/580194/) attempted to move the dbus communication logic into the kernel, but a [lot of](https://lwn.net/Articles/649111/) [concerns were raised](https://lwn.net/Articles/619068/) and (see the  [documentation](https://lwn.net/Articles/619069/)), and development moved on to [Bus1](https://bus1.org/) which is...a kernel dbus implementation!
-		The initial PR showed good performance numbers: going from [$200\mu s \to 8\mu s$](https://lwn.net/Articles/640360/) when switching from process-implemented D-Bus to the kernel-defined D-Bus protocol.
+	- [`kdbus`](https://lwn.net/Articles/580194/) attempted to move the dbus communication logic into the kernel, but a [lot of](https://lwn.net/Articles/649111/) [concerns were raised](https://lwn.net/Articles/619068/) (see the  [documentation](https://lwn.net/Articles/619069/)), and development moved on to [Bus1](https://bus1.org/) which is...a kernel dbus implementation!
+		The initial PR showed good performance numbers: going from [$200\mu s \to 8\mu s$](https://lwn.net/Articles/640360/) when switching from process-implemented D-Bus to the kernel-defined D-Bus protocol^[Note that synchronous invocation through a call-gate in Composite takes around 0.3$\mu s$.].
 		It is hard to implement a communication service in a process.
 		A well-articulated summary of the [complications](https://dvdhrm.github.io/rethinking-the-dbus-message-bus/) of doing `dbus` in user-level, and some of the historical bugs.
+		That said, as of now (early 2021), D-Bus is still implemented as a user-level process.
 	- Android uses `binder` and OSX uses Mach IPC for similar coordination and IPC.
 - One of `systemd`'s original purposes was to enable services to only be created when they are leveraged and required in the system.
 	D-Bus enables this as it enables clients to express their interest in specific channels.
@@ -386,27 +390,29 @@ About `systemd`:
 	This 1. doesn't use the many cores of the system, and 2. might result in services blocking on I/O, thus the system idling awaiting I/O instead of desperately racing to system bootup!
 	We used to wait for 10s of seconds for our systems to boot up; now we have to wait for single-digit number of seconds.
 	SSDs helped with this, but `systemd`'s inherent design to encourage parallelism and concurrency should get part of the thanks.
-- `systemd` is actually a [collection of processes](https://www.linux.com/training-tutorials/understanding-and-using-systemd/)
+- `systemd` is actually a [collection of processes](https://www.linux.com/training-tutorials/understanding-and-using-systemd/), not a single monolithic process.
 
 	- See a list of all services with  `systemctl` and find those units postfixed with `*.service`; those with `systemd-*` are from the systemd collection.
 	- There's even a service to create [containers](https://blog.selectel.com/systemd-containers-introduction-systemd-nspawn/).
 	- It will try and reboot services if they fail, which increases system resilience.
 	- You can [write your own](https://medium.com/@benmorel/creating-a-linux-service-with-systemd-611b5c8b91d6) service!
-	- The `systemd` processes are meant to be used as a cohesive core, rather than as replacable or composable modules.
-		They are not portable (they use Linux-specific APIs), and the lamentations of which get the reply from the FreeBSD dev, Benno Rice, ["Unix is dead"](https://www.youtube.com/watch?v=o_AIw9bGogo).
-- So wait, D-Bus as a foundational organizing medium?
-	Is Linux a micro-kernel?
+
+	Despite the implementation as multiple processes, the `systemd` processes are meant to be used as a cohesive core, rather than as replacable or composable modules.
+	They are not portable (they use Linux-specific APIs), and the lamentations of which get the reply from the FreeBSD dev, Benno Rice, ["Unix is dead"](https://www.youtube.com/watch?v=o_AIw9bGogo).
+
+- So wait, D-Bus is used as a foundational organizing IPC mechanism for system coordination?
+	Is Linux a micro-kernel now?
 	No, right?
 	That's crazy.
 	But also, yes, right?
 
-Other examples of modern systems consolidating more policy, further from the user.
-Modern Linux windows systems are based on Wayland which replaced the venerable X.org.
-Where X separates the compositing of many windows onto a shared screen into a separate, replaceable process, Wayland [co-locates compositing with rendering](https://wayland.freedesktop.org/architecture.html).
+Other examples exist of modern systems consolidating more policy, further from the user.
+For example, modern Linux windows systems are based on Wayland which replaced the venerable X.org.
+Where X separates the compositing of many windows onto a shared screen and the rendering of the scene into separate, replaceable processes, Wayland [co-locates compositing with rendering](https://wayland.freedesktop.org/architecture.html).
 This places more power and more intelligence into the Wayland server, and enables better usage of graphics hardware.
 
 Modern systems have required more policy to be placed into the core of the system.
-No longer do we only have simple daemons that each do a single thing, that simply interpret configuration files in `/etc/*` (thus are controlled by the user).
+No longer do we only have simple daemons that each do a single thing, and simply interpret configuration files in `/etc/*`, thus enabling tight control by the user.
 Instead, `systemd` says that we need the system to autonomously understand what services are required, and to make its own decision about how to execute them.
 This does move away from UNIX's organizing philosophies, but also demonstrates the power of creating a focused collection of services that are all written to solve a concrete problem.
 Almost more importantly, `systemd` shows that *pipes alone don't seem like a sufficient organizing principle*, instead requiring the likes of call/return-style RPC *and* streams of data and notifications based on publisher/subscriber interactions.
@@ -417,22 +423,27 @@ Given the fact that applications are a collection of libraries, middleware, and 
 *Containers*, starting with [Zones](https://en.wikipedia.org/wiki/Solaris_Containers), and made popular by [Docker](https://en.wikipedia.org/wiki/Docker_(software)), are a description of all of this application context, and an infrastructure for efficiently deploying all of it as a unit.
 A side-effect of this is that a single system can execute multiple sets of the applications and middleware on the same shared hardware.
 In this way, its goals are similar to virtualization.
+
 However, containers are different from VMs in that they all share the same kernel.
 Thus, containers provide significantly less isolation than VMs as a compromise in the container-providing kernel will directly impact all containers.
 Containers are implemented by separating the kernel *namespaces* between containers.
 These include the process id, hierarchical file-system, and networking namespaces, among others (seven namespaces, on Linux).
-The benefit of containers over VMs is that they provide much more efficient sharing between containers (e.g. via [union mounts](https://en.wikipedia.org/wiki/UnionFS)) at the granularity of individual system resources, as exposed by the abstractions of the kernel (e.g. files, directories, processes, shared memory segment, etc...).
+The benefit of containers over VMs is that they provide much more efficient sharing between containers (e.g. via [union mounts](https://en.wikipedia.org/wiki/UnionFS)) at the granularity of individual system resources, as exposed by the abstractions of the kernel (e.g. files, directories, processes, shared memory segments, etc...).
 
 ### Whither UNIX?
 
 Does the move away from "do only one thing" with users defining the composition policy mean that UNIX is dead?
 No.
 UNIX philosophies are still going strong, but the need to create more capable, monolithic applications is not going to go away, and in many domains, will dominate.
-How should we think about designing systems?
-Remember, first and fore-most, that we not only *compose* the *mechanisms* provided by modules into *policy*, but that systems of complex software are created by layers of these abstractions where policy at one level is the mechanism at the next.
+
+So this leaves us with the burning question: how should we think about designing complex software systems?
+Remember, first and fore-most, that we not only *compose* the *mechanisms* provided by modules into *policy*, but we also create complex software out of *many layers of these abstractions* where policy at one level is the mechanism at the next.
 Modern systems absolutely demonstrate a preference for policy often defined in monolithic applications, but that doesn't mean that the modules that constitute the system *below* that point doesn't focus on composition of simple modules.
 What is most clear to me is that streaming via pipes is not a sufficient coordination mechanism to create these layers of abstraction.
-So UNIX is certainly not dead, but it is being made more complex, more capable, and there is a lot more "grey area" being inserted into the design space, all to reflect the requirements of the software ecosystems.
+
+So UNIX is certainly not dead, but it is being made more complex and more capable.
+There is a lot more "grey area" between "do one thing well" and monolithic blobs that is being inserted into the design space, all to reflect the requirements of the inherent complexity of modern software ecosystems.
+It is important to understand how to design interfaces designed for modularity, composition, orthogonality, and simplicity, but it is also important to understand when departing from these rules is necessary.
 
 ### Questions
 
