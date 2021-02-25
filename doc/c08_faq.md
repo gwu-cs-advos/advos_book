@@ -591,3 +591,166 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 	It is often the case that we will want to delegate the responsibility for managing memory to another component, so that it can do allocations for us.
 	This is a large part of what the current capability manager does.
 	This enables the manager to split the memory, in accordance with demand, among multiple components, rather than requiring that we strictly partition the memory between applications.
+
+## L6: UNIX
+
+- Given all the modern UNIXish innovations, could the creators have done a better job?
+	Maybe not.
+	That would have taken time and resources.
+	It was more valuable to get the idea out than to predict 50 years of development.
+- Can a program wait for multiple events in UNIX?
+	Only with the event multiplexing APIs like `select`, `poll`, and `epoll`.
+
+## Interaction between modules
+
+Multiple programming models.
+
+- Streaming of bitstreams
+
+	```c
+	while (1) {
+		data = read(input);
+		output = process(data);
+		write(output);
+	}
+	```
+
+	Note that we might think of "typed streams" as using json or a bit-wise encoding to organize the streamed data.
+	This would look a lot more like retrieving and processing tuples in a db.
+
+- Call-return
+
+	```c
+	client(...) {
+		output = server_fn(foo, bar, baz);
+		process(output);
+	}
+	```
+
+	```c
+	server_fn(a, b, c) {
+		return process(a, b, c)
+	}
+	```
+
+- Single module, distributed execution (Spark, Mapreduce)
+
+	```rust
+	output = stream
+		.map(|data| process(data))
+		.filter(|data| if w00t(data) Some(data) else None)
+		.reduce(|data, result| result + process(data));
+	```
+
+	Is converted into:
+
+	```rust
+	while (1) {
+		data = read(input);
+		output = [];
+		for d in data {
+			output.append(process(d));
+		}
+		write(output);
+	}
+
+	while (1) {
+		data = read(input);
+		output = [];
+		for d in data {
+			if w00t(data) {
+				output.append(d);
+			}
+		}
+		write(output);
+	}
+
+	while (1) {
+		data = read(input);
+		output = [];
+		for d in data {
+			output.append(process(d));
+		}
+		write(output);
+	}
+	```
+	Where each module can be deployed in a separate process.
+
+# L7: Middleware/Frameworks and Application-based Composition
+
+- What is the relationship between `inetd` and `systemd`?
+	`systemd` subsumes all of the responsibilities of `inetd`.
+	`inetd` is simply the precursor that showed the power of having a daemon that mediates access to other daemons, thus allowing them to be started on demand, and restarted automatically.
+- How do we walk the line of developer-composed, and user-composed?
+	Developer-composed is unavoidable; this is how modern development is done.
+	Put another way, think of how many people 30 years ago were what we'd think of as "power users"?
+	What fraction of current computer users *today* are power users?
+	Less than 1%?
+	Likely.
+	We require developers to compose abstractions in a way that is tailored for specific market niches (i.e. user requirements).
+	We should be quite *thankful* for this.
+	It is what keeps us employed...for now.
+
+	So it is inevitable that we have developer composition.
+	However, the important question is more-so about how the abstractions the modules that developers compose are formed.
+	You will *all* do library/framework development.
+	How do you break that library into pieces?
+	How do you compose that library with others?
+	How do you integrate with the underlying Linux system?
+	These are the questions that emphasize the remnants of UNIX design: we still want to focus on
+
+	- separation of concerns (i.e. do one thing well),
+	- composition,
+	- orthogonality,
+	- the separation of mechanism and policy, and
+	- simplicity.
+
+	So how do developers handle this?
+	Remember the precepts of UNIX design when developing the systems that compose into your applications.
+	Make exceptions to this design philosophy when you need to, but make sure that is the exceptional case.
+- Would a Linux that moved memory management and scheduling into user-level even still be UNIX?
+	Perhaps; it might implement POSIX, which is a decent approximation of "are you a UNIX?".
+	However, the premise of the question is where the complexity is.
+	You could *not* move scheduling and memory management from the kernel to user-level simply because the kernel is implemented in such a way that it *depends* on memory management and scheduling.
+	If the kernel depends on some functionality, it cannot easily be implemented at user-level.
+	Even if it could, you'd have to ask the question if it is really useful.
+	A crash in the scheduler would still take down the entire system.
+	You'd have to pair that with the ability to have *multiple* schedulers and memory managers so that they can independently fail.
+	Now you're likely just looking at a capability-based OS.
+	So you'd have to get rid of the foundational elements of Linux to make this modification.
+- Are containers worth it over virtualization?
+	In cloud infrastructures, unlikely.
+	On your laptop, likely.
+	We are trading away isolation when we use containers, while achieving lower resource consumption.
+	When security isn't really an issue, and you simply want to leverage the dependency-resolution, developer-centric aspects of the abstraction, then containers are great.
+	When you need strong isolation, VMs are better.
+- Is Linux a microkernel now?
+	Moving functionality to user-level (`systemd`, multi-process frameworks, user-level device drivers (USB, bluetooth), user-level file systems (FUSE)), and having complex IPC facilities are properties of microkernels.
+	But they are not the definition of microkernels.
+	Microkernels attempt to minimize the kernel to support user-level definition of resource management and access control policy.
+	Linux is in *now way* doing this.
+
+	Linux *is* adopting features of microkernels.
+	But because the core of the system is not implemented to provide them efficiently, you see the huge performance disparity (200 $\mu$sec for D-Bus vs. 0.3 $\mu$-sec for Composite).
+- Are the daemons, the middleware talked about in the book?
+	Yes.
+	"Daemons" are essentially the "services" we've talked about previously in the class.
+	They provide abstractions and are leveraged by clients.
+	Libraries play into this as libraries are often used to interact with these services without writing a bunch of annoying broiler-plate IPC code.
+	That said, libraries are more general (and provide functionality apart from services) as well.
+- What is D-Bus again?
+	It is just a means to do IPC between different clients and different services using either function-call-like call/return, or publisher-subscriber communication.
+	Both are useful for `systemd` as it can look at a request for interaction with a service as a trigger to actually start that service, thus executing them on-demand.
+- Are there systems that use the heightened performance from microkernel IPC to make systemd-like coordination faster?
+	Not really.
+	Most applications that use D-Bus are written in a way that they understand that the performance is horrible.
+	Thus speeding them up won't matter much.
+	Put another way, D-Bus is never used in performance-centric environments.
+	Making infrequent operations faster doesn't have a large impact on the system as a whole.
+
+	An implication of this is that D-Bus could *not* be used as a core system composition facility.
+- If D-Bus works OK, why is `kdbus` (and other kernel-based implementations) being considered?
+	Performance, mainly.
+	But there are arguments that getting things like resource consumption attribution (proper accounting) right with the user-level version is impossible.
+	Can a client cause the service to consume a huge amount of memory without the client being charged for it?
+	There's a link in the book that discusses this case.
