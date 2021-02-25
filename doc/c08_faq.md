@@ -599,11 +599,81 @@ Section on "Complexity Management", and lecture [video](https://youtu.be/a8V2d33
 	That would have taken time and resources.
 	It was more valuable to get the idea out than to predict 50 years of development.
 - Can a program wait for multiple events in UNIX?
-	Only with the event multiplexing APIs like `select`, `poll`, and `epoll`.
+	For file descriptors, only with the event multiplexing APIs like `select`, `poll`, and `epoll`.
+	However, for the other event sources (signals, timers, etc...), you basically have to use a separate process or thread to wait on those, and then use IPC (or inter-thread communication) to convey the events to the thread in the "event loop".
+	This is often conveyed by writing to a pipe, the read-side for which is being `select`ed on, thus integrating the event into the main file-descriptor-based event loop.
+- How did UNIX wait on multiple events before the changes discussed for Linux?
+	See the previous bullet!
+	Each event wrote to a pipe fd, and the read-side was integrated into the `select` event multiplexing.
+- Is call/return style interaction the same as callbacks?
+	No.
+	Call/return is "function call semantics".
+	So it is synchronous, and passes a set of arguments, while (when the server is done computing) returning return values.
+	Callbacks are a concurrency programming style (not an IPC semantics) -- execute a callback when an event occurs.
+	A server can implement the call/return style using callbacks -- when the client invokes the server, the server can execute a callback in response to that even.
+- What is a typed interface?
+	Quite literally think of an `interface` in Java.
+	Each method has a type that includes object types passed in and returned.
+	The client passes in types that have a bit-layout that is identically understood by the server (i.e. they both understand where each field is, etc...).
+	This tightly couples the client and server.
+	Note that bit-streams (that use, for example, text to structure the data) can be used to pass typed information, which is what protobufs, thrift, and grpc all do.
+- Why `ioctl`?
+	It essentially provides an untyped interface that can be used to pass arbitrary arguments and return values from a user process to a kernel module.
+	In this way, it is infinitely extensible!
+	If you want to add a new function to use for process/kernel module communication, you can simply do so!
+	However, this freedom essentially means that you're giving up on providing well thought-out abstractions, and are instead just saying "whatever, modules can decide".
+	You can't blame a module that later implements a dangerous or non-orthogonal interface.
+- Can we see an example of a process that introspects on itself as it executes?
+	`cat /proc/self/maps` tells the process executing the `cat` program which memory maps it has as part of its virtual address space!
+	You can also modify some of the files in `/proc/self` to actually modify the program that is making the modifications.
+- What is coming after UNIX?
+	We actually see that right now!
+	Linux is UNIX++, as is.
+	See the Eurosys paper referenced in the chapter to see how Android and Ubuntu expand on UNIX; they already are the next evolution.
+	OSX is UNIX + Mach and has turned into a system with its own native interfaces.
+	In some sense most systems are UNIX, but they are also "beyond UNIX".
+- What is the problem with "long system calls"?
+	An example of what you have to add to *all* of your long system calls:
 
-## Interaction between modules
+	```c
+	int again;
+	do {
+		again = 0;
+		if (read(...) < 0) {
+		if (errno == EINTR) {
+			 again = 1;
+		}
+	} while (again);
+	```
 
-Multiple programming models.
+	There might be slightly clearer ways to write the code, but the point is that signals complicate composition with all long system calls.
+	You *must* include the logic for this checking simply because signals exist.
+	Do you think that every library that you use does this properly?
+	Unlikely.
+- Do the tacked on solutions offered by Linux and other systems hinder orthogonality?
+	Yes.
+	Binder and D-Bus both expand the number of options you can use for IPC.
+	Which should you use?
+	There are other examples.
+	What we have seen, however, is that higher-level libraries become the de-facto standard, and they use whichever underlying mechanism (despite there being competing implementations of that functionality) they want everyone to use in the system.
+	OSX does this frequently by pushing their development stack.
+	Grand Dispatch Central is the default concurrency and parallelism framework as it is the foundation behind their runtimes that you essentially have to use to do development.
+	This is, in some sense, the benefit of having corporate decision making behind the software.
+- Is there not a contradiction between "do one thing well", and the instances of a lack of orthogonality?
+	Yes!
+	I wouldn't "read into this" that much: this is simply an implementation not meeting up to a philosophy.
+	It doesn't change the underlying philosophy, just teaches us how to do better next time.
+- How can you say "done one thing well", and have `ioctl`?
+	You got me!
+	I think it was a simple acknowledgement that hardware interfaces have changed a ton over time.
+	Given this massive change, `ioctl` is a good "patch" to make progress while the hardware changes out beneath us.
+	More worrisome is that `ioctl` has been used for such a larger set of functionality beyond device configuration.
+	When you "give an inch, they take a yard", or "if you provide user-level with an interface, it will be used to the maximum of its capabilities".
+
+### Interaction between modules
+
+Lets discuss multiple programming models for communication between modules.
+This is complicated as it involves concurrency, data movement, synchronization, and, different means of means of programming.
 
 - Streaming of bitstreams
 
@@ -614,6 +684,7 @@ Multiple programming models.
 		write(output);
 	}
 	```
+	You might have multiple of these programs stringed together with pipes (from `stdout` in one computation to `stdin` in the next).
 
 	Note that we might think of "typed streams" as using json or a bit-wise encoding to organize the streamed data.
 	This would look a lot more like retrieving and processing tuples in a db.
@@ -676,7 +747,7 @@ Multiple programming models.
 	```
 	Where each module can be deployed in a separate process.
 
-# L7: Middleware/Frameworks and Application-based Composition
+## L7: Middleware/Frameworks and Application-based Composition
 
 - What is the relationship between `inetd` and `systemd`?
 	`systemd` subsumes all of the responsibilities of `inetd`.
