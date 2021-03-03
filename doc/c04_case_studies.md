@@ -466,25 +466,177 @@ Implement a simple `nameserver` that enables other "server" processes to associa
 
 ## Plan 9
 
-[Plan 9](https://9p.io/plan9/) [design](https://9p.io/sys/doc/9.pdf) and [related info](https://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs)
+We've seen that the UNIX philosophy has a lot of good intention, and many good ideas.
+But we've also seen that modern development styles tend to rely on monolithic applications and frameworks, a move away from user composition of "do one thing well" modules.
+Additionally, we've seen that UNIX implementations (through POSIX) didn't age well (event APIs, not really everything is a file, etc...).
 
-Fundamental question: Can we expand most aspects of system implementation to the "UNIX philosophy"? The idea:
+[Plan 9](https://9p.io/plan9/) was created as a clean-slate [re-design](https://9p.io/sys/doc/9.pdf) of UNIX.
+It was created *before* modern development styles, but does have something to say about how the operating system can be designed to enable framework-driven design.
+In some sense, Plan 9 seeks to answer the question:
+Can we expand most aspects of system implementation to the "UNIX philosophy"?
+The idea might be summarized:
 
-1. Address *all* resources via the hierarchical namespace (think: are BSD sockets part of the Linux namespace? how about GUIs? how about program execution through text interpretation? how about remote hells, e.g. ssh? how about webpages?).
-2. Enable per-process namespaces (can generalize `setroot` and container namespacing functionalities) and union mounts (binds).
-3. Provide facilities for virtual resources (built on those provided by the kernel) that is latched into the namespace, and leveraged via IPC.
-4. The protocol for namespaces and IPC has a serial representation, thus can span over a network.
+1. Address *all* resources via the hierarchical namespace.
+	(Think: are BSD sockets part of the Linux namespace? how about GUIs? how about program execution through text interpretation? how about remote hells, e.g. ssh? how about webpages?)
+2. Enable per-process namespaces (can generalize `chroot` and container namespacing functionalities) and union mounts (binds) that enable multiple namespaces to be overlayed in the same directory.
+3. Provide facilities for virtual resources (built using user-level services) that are added into the namespace, and the computation of those services are leveraged via IPC.
+4. The protocol and API for accessing namespaces and IPC has a serial representation, thus requests to use resources can span over a network.
 
-This is pushed to a logical conclusion: execution, visualization and human interaction, and the semantic behavior of text (the bitstream), are all defined as user-level servers, hooked into the namespace, and leveraged via IPC.
+### 9P and Programmatic Namespaces
 
-- A set of [servers](http://man.cat-v.org/plan_9/4/) that all speak [the](http://doc.cat-v.org/plan_9/misc/ubiquitous_fileserver/ubiquitous_fileserver.pdf) [9p](https://en.wikipedia.org/wiki/9P_(protocol)) [protocol](http://man.cat-v.org/plan_9/5/intro) by accessing an manipulating their [namespace](http://doc.cat-v.org/plan_9/4th_edition/papers/names), and are accessible via general and programmable [IPC](http://doc.cat-v.org/plan_9/4th_edition/papers/plumb).
+Plan 9 makes the system hierarchical namespace (like the filesystem), the dominant organizational principle in the system.
+Given this, it is necessary for applications that provide services and resources to be able to "hook" into the namespace, and provide their resources there.
+The window manager should be able to publish its window data as "files" that can be manipulated by GUI libraries; network connections should be exposed as files (as opposed to the `socket`, `bind`, `accept`, `listen` networking API); and our text editors should have various windows exposed via the filesystem so that they don't need to implement the likes of `grep`.
+
+The key to understanding understanding how services might expose their resources via the filesystem starts with UNIX's `mount`.
+`mount` takes a file in the filesystem (usually in `/dev/*`) that often represents the device to be mounted, and it takes the location in the filesystem on which to mount the device (the mount point).
+This operation has the feeling of [inception](https://en.wikipedia.org/wiki/Inception) because what was a file on the FS (in `/dev/*`) now creates a whole *subtree* on the file system at the mount point.
+We think of this blandly as exposing the FS of a device.
+But it is more general than that.
+Imagine if we could mount not only devices, but *services*!
+The services could work with the system to expose their resources as files and directories in their namespace, exposed to the world at the mount point.
+Were we to implement this, we'd need some sort of a conventional way to send requests to the service to "open a file", "list the contents of a directory", "navigate through the hierarchy", and "add/remove files/directories".
+This "conventional way to send requests" is the **9P** protocol.
+You can think of it as a set of functions that each service must implement.
+They include operations for reading and writing data from resources, traversing the resource hierarchy, etc...
+9P has a serialized representation, so it can be used over a network!
+This means that you can make remote services appear in your local file system namespace.
+
+9P is interesting because, unlike UNIX `mount`^[I'm ignoring FUSE here which is inspired by Plan 9.], it enables `mount`ing a *service*.
+This service defines its own abstract resources logic, exposed as a file system hierarchy.
+
+The "plumbing" here gets complicated.
+The kernel tracks each process' namespace, and maintains a mapping of the mountpoints to the services providing that subtree's namespace.
+Thus, when a process `open`s a file (or `ls`s a directory), or `read`s/`write`s to a file, it can see if those resources are provided by a service.
+If so, it will forward the request to the service by synthesizing the corresponding 9P message.
+As such, this starts to looks a *lot* like a microkernel!
+Our process is doing what conventionally looks like a FS operation, and that gets forwarded to a service via IPC.
+
+Lets compare this to a capability-based OS (CBOS).
+The fundamental abstraction in CBOSes is the capability table.
+When you want to perform an operation on a resource, you must specify which capability (associated with the resource) you wish to do the operation on.
+The capabilities form a process' *only* namespace.
+Since they are implemented as integers (or as addresses accelerated by TLBs and hardware-walked page-tables), operating on them is *very fast*.
+The resources are either relatively primitive (threads, pages), thus support only a few different operations, or are IPC endpoints, thus support emulated function invocation in a service.
+
+In contrast, Plan 9 says that the primary namespace should be the hierarchical namespace of resources.
+It supports only a fixed number of operations defined by 9P (see [Table 1](http://doc.cat-v.org/plan_9/misc/ubiquitous_fileserver/ubiquitous_fileserver.pdf)).
+Given these facts, compared to CBOSes, this approach is both more complicated and expressive (hierarchical namespace of strings), and more constrained (fixed set of operations).
+Supporting the general hierarchical namespace means that we likely need quite a bit more complexity in the kernel than CBOSes (that lack memory allocation) can support.
+It also means that services can only be those that can fit their operations into the 9P-style interface (read, write, etc...).
+This means that low-level services such as schedulers and memory managers don't fit well into Plan 9.
+
+### Everything is a File
+
+Plan 9 intentionally ensures that most system resources are accessed through the hierarchical namespace.
+This includes not only files, sockets, and IPC end-points, but also the constituent resources *within* applications: for example the bitmaps in the GUI, and the contents of the buffers into an editor.
+This increases increase the utility and leverage of programs that operate on the global namespace.
+`echo` now can edit editor buffers, can modify GUI buffers, can create a network connection, and can modify processes.
+Expanding on the last: process management is through `/proc` (which inspired similar functionality in Linux).
+Similar to Linux, you can access the memory of a process, and the executable code (useful for debuggers), but it also replaces the Linux system calls for process management (`kill`, `ps`, etc...) with operations on `/proc`.
+It is common to have `ctl` files in Plan 9 into which commands are written.
+Process `256` can be killed using `echo kill > /proc/256/ctl`.
+`/dev/screen` includes the current bitmap of the screen, and `/dev/bitblt` enables a user to pass commands to render on the screen (e.g. overlay a bitmap at a location on the screen).
+
+How do we manipulate the namespace?
+When a process forks (`rfork` in Plan 9, which is more similar to `clone` in Linux), the parent's namespace is optionally *shared*, or *copied* with the child.
+It can be manipulated using a number of system calls:
+
+- `mount` enables attaching a file into a specific location in the namespace.
+	UNIX-style mount does this as such: `mount("/dev/foo", "/home/gparmer/here/", ...)`.
+	Instead, in Plan 9, this is changed slightly: `mount(fd, path, ...)`.
+	If you already have a communication channel with a service that uses the 9P protocol (accessed via `fd`), then `mount` will simply hook that service into the kernel's hierarchical namespace.
+	In doing so, client system calls operating on the service's namespace are translated by the kernel into 9P messages sent to the service.
+- `bind` enables us to make a specific subtree of our namespace visible elsewhere at a *destination* in our namespace.
+	For example, `bind("/remote/proc/10/", "/proc/10", MBEFORE)` would take a remote process (pid `10`) that we have access to at `/remote/proc/10`, visible in our local process namespace in `/proc/*`.
+	This is similar to hard links in UNIX, but can be applied to anything in the namespace, not just files and directories.
+	Interestingly, it also enables us to *combine* the contents in the current *destination*, so that we don't overwrite was what previously there.
+	The `MBEFORE` flag enables this by say that we want to see the remote processes before the local ones.
+- `unmount` removes visibility to resources in a subtree of the namespace.
+
+### Examples
+
+The flexibility of namespace manipulations can be seen (as a single example among many) in the interaction between remote, networked systems.
+There are a number of notable services that make remote interactions possible.
+
+- The `exportfs` program simply exports its own 9P interface, that exposes a subtree of the local namespace via that interface.
+	It is often network-facing, thus enabling remote hosts to access local namespaces transparently.
+	If you want to do nothing useful, you can export `/` using `exportfs`, and `mount` the `exportfs` channel to create a recursing file system.
+	If `exportfs` is mounted at `/inception/ishere/`, then all of the following exist^[Assuming a concurrent implementation of `exportfs` that doesn't prevent this recursion.]: `/inception/ishere/inception/ishere/`, `/inception/ishere/inception/ishere/inception/ishere/`, etc...
+	This example is obviously not useful.
+	What is useful is that
+- `import` attempts to connect to a remote server that is exporting a hierarchy, and mounts the remote namespace within the local.
+	With this, you can now simply access the remote resources, seamlessly.
+
+Lets go through a number of cool things that you can do with these simple facilities.
+
+- `cpu` uses the CPU of a remote server, but executes programs with *local* resources.
+	It uses `exportfs` on the client to provide access to *at least* the `/dev/console` to the server, so that all input/output comes from the client, and execution is on the server.
+	More aggressively, the client can export its entire set of `/dev/*` to the CPU server.
+	In that case, the GUI (`/dev/draw`) for the program transparently uses the client's GUI server, and the program has access to the other devices (e.g. microphone, video, `/dev/mouse`, etc...) on the client.
+	If we export all of `/` to the CPU server, then we're effectively executing locally, but *with the beefy CPU of the server*.
+- If we want to "tunnel" our network communication through another remote system's network (like modern Virtual Private Networks, VPN), this is simple.
+	In Plan 9, this is as simple as `import`ing a remote `/net` interface, and `unmount`ing our own, or `bind`ing it over our local network.
+	Now we are using the network "files" of the remote system, thus using the network of the remote system!
+- We can do *local* processing on *remote* resources by simply `import`ing a subset of the remote namespace into our own.
+	In doing so, we can likely mess with our remote friends by `import`ing some of their namespace, and `echo`ing to their `/dev/draw`.
+- If we want to debug a remote process (say, in the cloud), we can `import` their `/proc` and allow our debugger to access process execution state (`db /proc/x/text /proc/x/mem`).
+- If you have a cluster of servers, and they all execute `import <peer> /srv; import <peer> /proc` for each other `<peer>` in the cluster, then they all "look" like they are executing on one big system.
+	`ps` (that goes through `/proc`) will list all processes across the *cluster*, and every process will have access to the 9p services on all nodes (in `/srv`).
+	You could also create a directory of data shared between all nodes.
+
+If you have trouble imagining the power of this set of unifying abstractions, you might want to look at the simplicity of the key infrastructure:
+
+- [exportfs](https://github.com/gwu-cs-advos/plan9/tree/master/sys/src/cmd/exportfs)
+- [import](https://github.com/gwu-cs-advos/plan9/blob/master/sys/src/cmd/import.c)
+- [cpu](https://github.com/gwu-cs-advos/plan9/blob/master/sys/src/cmd/cpu.c)
+
+**Why is this all a good idea?**
+If you have a unified and singular abstraction for resource access, then very simple utilities like `exportfs` and `import` generate an immense number of useful features.
+You end up writing less code.
+We don't have to write the next 500,000 lines of code for container infrastructures, and can instead just write a small shell script.
+The argument is never that you can do things in these systems that Linux cannot; the argument is that the abstractions are better aligned for doing innovative things, easily.
+
+I have not covered how Plan 9 encourages applications to be 9p services that export portions of themselves into the namespace.
+This, again, enables simple commands and scripts to how directly interface with application logic.
+It enables a fair amount of application logic to be written with scripts!
+See plumber and acme for great examples, and a [more complete list](http://doc.cat-v.org/plan_9/misc/ubiquitous_fileserver/ubiquitous_fileserver.pdf).
+
+**Question.**
+Why aren't process creation and shared memory part of the namespace (they have specific system calls)?
+Imagine creating processes using the file system.
+Can you design a way to make this work?
+The authors of Plan 9 [considered this](http://doc.cat-v.org/plan_9/4th_edition/papers/names)
+
+> We could imagine a message to a control file in /proc that creates a process, but the details of constructing the environment of the new process — its open files, name space, memory image, etc. — are too intricate to be described easily in a simple I/O operation.
+
+Does this hold water?
+Can you come up with an interesting design to try and make this work?
+
+**References.**
+A set of [servers](http://man.cat-v.org/plan_9/4/) that all speak [the](http://doc.cat-v.org/plan_9/misc/ubiquitous_fileserver/ubiquitous_fileserver.pdf) [9p](https://en.wikipedia.org/wiki/9P_(protocol)) [protocol](http://man.cat-v.org/plan_9/5/intro) by accessing an manipulating their [namespace](http://doc.cat-v.org/plan_9/4th_edition/papers/names), services are accessible via general and programmable [IPC](http://doc.cat-v.org/plan_9/4th_edition/papers/plumb).
 	Some [namespace](https://blog.darknedgy.net/technology/2014/07/31/0-9ns/) and [networking](https://blog.darknedgy.net/technology/2014/11/22/1-9networking/) examples.
 
+### `echo "Plan 9 Failures" | sed "s/Failures/Successes/g"`
+
+So why did Plan 9 not take over?
+In some sense, it has impacted our world: 9p is supported by Linux and is the basis for some cloud communication, FUSE enables programmatic namespace support, the `/proc/*` filesystem, and per-process namespaces are re-implemented in containers, and Linux even supports 9P [natively](https://www.usenix.org/legacy/events/usenix05/tech/freenix/full_papers/hensbergen/hensbergen.pdf).
+In this sense, some of the best ideas have been integrated into existing systems.
+But it did *not* take over.
 **Remember: worse is [better](https://dreamsongs.com/WorseIsBetter.html).**
 Plan 9 had an even more up-hill battle vs UNIX: coming out (significantly) later *and* requiring software migration.
 
 > [I]t looks like Plan 9 failed simply because it fell short of being a compelling enough improvement on Unix to displace its ancestor. Compared to Plan 9, Unix creaks and clanks and has obvious rust spots, but it gets the job done well enough to hold its position. There is a lesson here for ambitious system architects: the most dangerous enemy of a better solution is an existing codebase that is just good enough.
 > - Eric S. Raymond
+
+### Perspective
+
+What's interesting here is that we've seen two fundamentally different system structuring principles: capabilities and hierarchical namespaces.
+They both enable strong *composition* properties by enabling services to be leveraged by other services and applications.
+They essentially are systems defined around how different services can be bound to each other and to applications.
+We also saw that Linux is trying to recreate many of the underlying properties in an ad-hoc manner.
+`systemd` and D-Bus attempt to integrate services and applications together.
+But it does so in a manner that is in no way optimized for orthogonality, minimality, nor composability.
 
 ### Questions
 
