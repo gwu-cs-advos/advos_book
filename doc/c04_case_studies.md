@@ -623,6 +623,7 @@ So why did Plan 9 not take over?
 In some sense, it has impacted our world: 9p is supported by Linux and is the basis for some cloud communication, FUSE enables programmatic namespace support, the `/proc/*` filesystem, and per-process namespaces are re-implemented in containers, and Linux even supports 9P [natively](https://www.usenix.org/legacy/events/usenix05/tech/freenix/full_papers/hensbergen/hensbergen.pdf).
 In this sense, some of the best ideas have been integrated into existing systems.
 But it did *not* take over.
+
 **Remember: worse is [better](https://dreamsongs.com/WorseIsBetter.html).**
 Plan 9 had an even more up-hill battle vs UNIX: coming out (significantly) later *and* requiring software migration.
 
