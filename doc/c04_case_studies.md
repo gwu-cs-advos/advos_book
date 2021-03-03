@@ -477,8 +477,8 @@ Can we expand most aspects of system implementation to the "UNIX philosophy"?
 The idea might be summarized:
 
 1. Address *all* resources via the hierarchical namespace.
-	(Think: are BSD sockets part of the Linux namespace? how about GUIs? how about program execution through text interpretation? how about remote hells, e.g. ssh? how about webpages?)
-2. Enable per-process namespaces (can generalize `chroot` and container namespacing functionalities) and union mounts (binds) that enable multiple namespaces to be overlayed in the same directory.
+	(Think: are BSD sockets part of the Linux namespace? how about GUIs? how about program execution through text interpretation? how about remote shells, e.g. ssh? how about webpages?)
+2. Enable per-process namespaces (can generalize `chroot` and container namespacing functionalities) and union mounts (binds) that enable multiple namespaces to be overlayed in the same directory (this makes containers trivially implemented).
 3. Provide facilities for virtual resources (built using user-level services) that are added into the namespace, and the computation of those services are leveraged via IPC.
 4. The protocol and API for accessing namespaces and IPC has a serial representation, thus requests to use resources can span over a network.
 
@@ -488,7 +488,7 @@ Plan 9 makes the system hierarchical namespace (like the filesystem), the domina
 Given this, it is necessary for applications that provide services and resources to be able to "hook" into the namespace, and provide their resources there.
 The window manager should be able to publish its window data as "files" that can be manipulated by GUI libraries; network connections should be exposed as files (as opposed to the `socket`, `bind`, `accept`, `listen` networking API); and our text editors should have various windows exposed via the filesystem so that they don't need to implement the likes of `grep`.
 
-The key to understanding understanding how services might expose their resources via the filesystem starts with UNIX's `mount`.
+The key to understanding how services might expose their resources via the filesystem starts with UNIX's `mount`.
 `mount` takes a file in the filesystem (usually in `/dev/*`) that often represents the device to be mounted, and it takes the location in the filesystem on which to mount the device (the mount point).
 This operation has the feeling of [inception](https://en.wikipedia.org/wiki/Inception) because what was a file on the FS (in `/dev/*`) now creates a whole *subtree* on the file system at the mount point.
 We think of this blandly as exposing the FS of a device.
@@ -596,6 +596,7 @@ If you have a unified and singular abstraction for resource access, then very si
 You end up writing less code.
 We don't have to write the next 500,000 lines of code for container infrastructures, and can instead just write a small shell script.
 The argument is never that you can do things in these systems that Linux cannot; the argument is that the abstractions are better aligned for doing innovative things, easily.
+Then again, we all have good jobs and pay because we refuse to make these types of things easy ;-).
 
 I have not covered how Plan 9 encourages applications to be 9p services that export portions of themselves into the namespace.
 This, again, enables simple commands and scripts to how directly interface with application logic.
@@ -634,10 +635,12 @@ Plan 9 had an even more up-hill battle vs UNIX: coming out (significantly) later
 
 What's interesting here is that we've seen two fundamentally different system structuring principles: capabilities and hierarchical namespaces.
 They both enable strong *composition* properties by enabling services to be leveraged by other services and applications.
-They essentially are systems defined around how different services can be bound to each other and to applications.
+They are essentially systems defined around how different services can be bound to each other and to applications.
+
 We also saw that Linux is trying to recreate many of the underlying properties in an ad-hoc manner.
 `systemd` and D-Bus attempt to integrate services and applications together.
 But it does so in a manner that is in no way optimized for orthogonality, minimality, nor composability.
+It requires large amounts of new and clever code, rather than a small set of shell scripts.
 
 ### Questions
 
