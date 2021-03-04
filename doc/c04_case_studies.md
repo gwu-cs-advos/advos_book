@@ -598,6 +598,8 @@ We don't have to write the next 500,000 lines of code for container infrastructu
 The argument is never that you can do things in these systems that Linux cannot; the argument is that the abstractions are better aligned for doing innovative things, easily.
 Then again, we all have good jobs and pay because we refuse to make these types of things easy ;-).
 
+![This demonstrates the "thin waist" of the hierarchical namespace as the uniform means to access resources. There are $N$ applications that *use* the abstraction (shown here: shell scripts, command line, and applications written to the `read`/`write`/`create`/`remove` interface). There are $M$ services that implement for the uniform API (here: UI, remote access through `import` + `exportfs`, email, http, and containers). This means that for every application, they automatically get the benefit of $M$ services. Each service that is also an application also gets the benefit of $M$ services. Without writing any additional code, we get a huge amount of free functionality.](./resources/plan9_thinwaist.png)
+
 I have not covered how Plan 9 encourages applications to be 9p services that export portions of themselves into the namespace.
 This, again, enables simple commands and scripts to how directly interface with application logic.
 It enables a fair amount of application logic to be written with scripts!
@@ -636,6 +638,13 @@ Plan 9 had an even more up-hill battle vs UNIX: coming out (significantly) later
 What's interesting here is that we've seen two fundamentally different system structuring principles: capabilities and hierarchical namespaces.
 They both enable strong *composition* properties by enabling services to be leveraged by other services and applications.
 They are essentially systems defined around how different services can be bound to each other and to applications.
+
+Plan 9 achieves its benefits from the combination of
+
+1. uniform resource addressing (hierarchical namespace to address all -- or most of -- the resources),
+1. simple programming models to operate on these resources (a simple `read`/`write`/`create`/`remove` interface exposed to users through simple commands, and composed in shell scripts),
+1. means to programmatically provide abstract resources (services implementing 9p services that can be `mount`ed into a process' namespace), and
+1. potentially accessible transparently over networks (via 9P).
 
 We also saw that Linux is trying to recreate many of the underlying properties in an ad-hoc manner.
 `systemd` and D-Bus attempt to integrate services and applications together.

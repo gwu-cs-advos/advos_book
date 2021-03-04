@@ -825,3 +825,81 @@ This is complicated as it involves concurrency, data movement, synchronization, 
 	But there are arguments that getting things like resource consumption attribution (proper accounting) right with the user-level version is impossible.
 	Can a client cause the service to consume a huge amount of memory without the client being charged for it?
 	There's a link in the book that discusses this case.
+
+## L8: Plan 9
+
+- Was Plan 9 created when distributed systems were popular?
+	Yes.
+	In the 80s distributed systems were *very* popular.
+	They petered out until the cloud took over around 2004.
+	Thus distributed computation is a first-class design concern in Plan 9.
+- Are symlinks similar to `bind`?
+	Somewhat.
+	They do create an alias within the namespace to an existing name.
+	However, `bind` is much more powerful.
+	It enables the *files* in a directory to all be bound into a directory, and for them to co-exist with existing names (files) already there.
+	What happens if there is a name that you're binding into a directory that is the *same* as an existing name in the bind point?
+	Interestingly, in Plan 9, directories are *not sets*!
+	You can have multiple identical names in a directory.
+	When opening a file, you open the *first* instance of that name in the directory.
+	Thus, when you `bind`, you specify if the new names are bound *before* or *after* the existing resources.
+- Why can't we just have a `ctl` file in `/proc/` that we write to create a new process?
+	The challenge is in the edge-cases.
+	How do you pass it the initial file-descriptors it should use?
+	How would a shell initialize its `stdin` and `stdout`?
+	How do we do that, without suffering from races between the process executing and us modifying the resources it has access to?
+
+	I'm convinced that all of these problems could be addressed.
+	However, they are challenging problems.
+	It isn't clear if, once we have a solution, the performance would be acceptable.
+- How do daemons fit into this system?
+	Daemons are replaced with the services that expose their resources in the namespace (using 9p).
+- "It simultaneously makes sense to me but feels way too simple." when describing the network examples in the book.
+	Yes!
+	Well constructed abstractions often enable you to do very powerful things, very simply.
+	This is one of the best descriptions I've seen for the benefits of this type of a system.
+- Why does Linux not use any of these stuff?
+	Why does this stuff matter if we can do everything we want in Linux?
+	Think of how many human-hours of work, and how many lines of code are required to do what can be done in a 100 line shell script in Plan 9.
+	Now think of how much time we all have to spend maintaining and modifying those massively complex systems?
+	We have gotten very good at working *within the confines of massive complexity*.
+	That doesn't mean that we shouldn't try to design abstractions that can *avoid that complexity* wholesale.
+
+	If there is one thing that I want you to understand, it is this:
+	Accidential complexity can be massive.
+	It is also difficult to identify it.
+	When looking at `ssh`, you might not see much accidental complexity.
+	To some degree, the same probably can be said about `systemd`.
+	But you have to take a step back, and realise: the **fundamental organizational abstractions have a huge impact on the accidental complexity of the surrounding system**.
+	We must always strive to design our systems in a manner that forms abstractions cleanly to avoid the next 10 years of accidental complexity.
+- How secure are the transparent distribution facilities in Plan 9?
+	I haven't looked deeply into the details, but lots of [cool details](https://www.usenix.org/conference/11th-usenix-security-symposium/presentation/security-plan-9) to dive into.
+- What does it mean that "IPC can have a serialized representation"?
+	IPC is often simply trying to invoke some function in another process, pass some arguments, and return the return value(s).
+	So if we want IPC to go over a network, we simply need a way to lay out the target function, the arguments, and the return values into a bytestream.
+	JSON, for example, is a serial representation, and could be used here.
+	This has some overhead: converting from the arguments and return values passed similar to normal function invocations is fast, while converting them into a sequence of bytes that can be transmitted over the network has additional overhead.
+- What does it mean for "resources to span the network"?
+	This essentially means that we can access remote resources.
+	The local resources are being accessed by computations on remote nodes!
+	Put a fancy way, the resources are accessed locally, and remotely, thus they are conceptually covering the span of the nodes on the network.
+- What does it mean for a service to "expose its resources in the namespace"?
+	Each application or service can figure out how it wants to represent the abstract resources it provides to the other services and applications in the hierarchical namespace.
+	If an email service wants to provide access to emails to applications and users, it can choose to have a different directory for each mail, with a series of files holding the title, contents, attachements, etc...
+	In this way, the service is exposing its abstract resources to users in the namespace.
+	Remember services take lower-level resources, apply their own policy, and expose them as more abstract resources -- and Plan 9 provides a unform means of exposing them!
+- How does a file operation become a 9P message?
+	The kernel will receive the system-call (e.g. `read`) on a specific path in the namespace, identify which services (process) is mounted at the path, create a 9P message (a serialized version of `read`), and essentially write that message to a pipe that the service is reading from.
+- Is everything a file; how about scheduling and memory?
+	More abstractions are files compared to UNIX.
+	However, memory, rendezvous between threads, process (creation), and scheduling are *not* represented as files.
+	They all have specialized implementations in the kernel.
+- Linux has net and IPC namespaces (along with 5 other namespaces); how are these managed?
+	They are managed using special system calls, specific to the namespaces.
+	The difference between Linux here and Plan 9 is that the namespaces are not unified around the hierarchical namespace.
+	Thus, containers must have separate code and logic for handling each different namespace.
+- Can a Plan 9 exist with no filesystem?
+	Plan 9 requires the hierarchical namespace, but it does not require disk-based backing.
+	All of the namespace could be populated by virtual files provided by servers.
+	Of course, you need a way to run all of those servers, so you might need an initial ramfs.
+	This could allow "thin terminals" that don't have many local resources (e.g. disk), and instead use remote resources.
