@@ -903,3 +903,99 @@ This is complicated as it involves concurrency, data movement, synchronization, 
 	All of the namespace could be populated by virtual files provided by servers.
 	Of course, you need a way to run all of those servers, so you might need an initial ramfs.
 	This could allow "thin terminals" that don't have many local resources (e.g. disk), and instead use remote resources.
+
+## L9: IPC Implementation and Optimization
+
+- Is IPC overhead ever the bottleneck of the system?
+	Yes.
+	If IPC is replacing system calls (for example), if that IPC overhead is a bottleneck (i.e. a dominant cost) is only a function of the frequency of the calls.
+	Webservers can certainly make a system call every few microseconds, thus being significantly impacted if IPC takes a microsecond (read about webserver CGI and the motivation for FastCGI from long ago for some background).
+- It is easy to understand priorities, but how does a "budget" impact scheduling?
+	Budgets capture the idea that there is a finite amount of computation allocated to a thread.
+	As the thread executes, its "budget" decreases correspondingly.
+	Once the budget is expended, the scheduler will suspend the thread.
+	Later, the budget can be replenished, thus re-activating the thread.
+	One simple way to think about budgets and replenishments is this: a thread has $b$ cycles worth of budget every $p$ period of time.
+	Thus, replenishments happen for up to $b$ cycles every $p$ cycles.
+	As such, that thread will be able to use *at most* a fraction $b/p$ of a core.
+	The idea behind budgets is often to make sure that higher-priority execution is prevented from starving other threads.
+	Linux has `cgroups` that are a hacky implementation of budgets that are used to provide enhanced isolation for containers.
+- Can't we just use shared memory for the asynchronous IPC case as well to avoid buffering?
+	You can use shared memory for communication between asynchronous threads.
+	However, you often still need to copy data into the shared memory (from the client-side), and then out (on the server-side), so you don't really save copies.
+	It is generally nicer to rely on the kernel to do the data-movement, but not required.
+- Why would synchronous IPC ever use asynchronous APIs?
+	Asynchronous APIs similar to `read`/`write` are general in that a client can insert arbitrary logic between the `write` (to request service), and the `read` (to get the return values).
+	They also provide the core of the VFS API.
+	I don't know why, but it is likely another instance of technological momentum.
+
+### Sync. IPC between threads
+
+- Why is `s.prio > c.prio` (for all `c`) a problem?
+	If the server takes *t* amount of time to execute, then a low-priority client *l* could invoke the server, and immediately afterwards a medium priority thread, *m*, could activate (e.g. through an interrupt).
+	This means that *l* can delay *m*'s execution -- despite *l* being lower priority than *m* -- for *t* cycles.
+- How can a middle priority thread, *m*, prevent the higher priority thread, *h*, from executing when the server has a lower priority, *l*?
+	Lets go through a potential sequence of actions:
+
+	1. client *h* does synchronous IPC with server *l*.
+	1. *l* is preempted by *m*.
+	1. *m* executes for a potentially unbounded span of time.
+
+	As such, the result is that *m* can indefinitely block *h*, despite being lower priority.
+
+- Why does Credo use (i.e. "inherit") the priority of all clients awaiting service, and the budget of the client that is being serviced?
+	If a server that is processing for a client has a number of additional clients waiting for it to finish, we would give that server the maximum of the priorities of the clients (if we use the inheritance policy).
+	This avoids the middle-priority problem above.
+
+	But what about "transitive" blocking relationships.
+	If a client blocks on sync. IPC with a server, and that blocks on sync. IPC with another server, and that blocks on sync. IPC from the server above, it is important that we also consider this client's priority in the inheritance as well!
+	Thus, we must essentially give a server the maximum priority of *all* threads that are blocked on, and transitively blocked on IPC with the server.
+- Why are the synchronous IPC optimizations able to avoid an in-kernel buffer?
+	Both the client and server, when "rendezvous"ing together are both blocked.
+	Since neither is modifying their own buffer since they're blocked, the kernel can copy direction from one buffer to the other.
+- What impact does asynchronous programming (programming the client and server to use asynchronous interfaces) have?
+	For async., a client must have logic for event notification (when might a server have a reply?) -- remember `select` and `epoll`?
+	This increases the complexity of the client.
+	Now we need mechanisms for 1. awaiting multiple responses, and 2. logic to handle each response separately.
+	Remember `libuv`?
+	That is a solution to this problem!
+	Make request to the Linux kernel to do I/O, but don't block (i.e. asynchronously make the request), have a library that awaits completion of all of the, and invokes a *callback function* associated with the pending request.
+	Callbacks and event-based programming can be a little horrible to program, so javascript, rust, and C# (and likely other languages I don't know about) have `async`/`await` that use the compiler to hide the callback execution behind what looks like sequential code.
+- When using the synchronous IPC between threads optimization that avoids modifying scheduling structures, how can a timer interrupt know that the server is running?
+	The kernel almost always maintains a global variable pointing to the "current" thread.
+	So the kernel can trivially know that the server is active by observing that variable.
+	It can immediately add the server to the runqueue as it now knows it is runnable.
+	If it finds that a client (blocked waiting on a server, but not yet removed from the runqueue) is the highest-priority thread, the scheduler will always check that the thread's state is actually *runnable* before switching to it.
+	If it is not runnalbe, but is part of the runqueue, the scheduler can simply remove it from the runqueue, and then find the next highest priority thread.
+	Unfortunately, this can cause *O(n)* overhead in the scheduler.
+- What are the data-structures that track thread interactions in L4?
+	See the image:
+
+![The core data-structures used to track IPC interactions in L4. In red: a "backpointer" from the server to the current client being serviced. Blue: doubly linked list to track pending clients.](./resources/l4ipc.png)
+
+### Thread Migration
+
+- What happens with thread migration when two clients try and get service from a single server; does one block?
+	Nope!
+	They both proceed execution in the server.
+	This is why servers must be multi-threaded: when *N* clients invoke the server, you end up with *N* threads executing in the server.
+	A side-effect of this is that you need to use locks and other synchronization primitives in the server.
+	The kernel *has no blocking APIs*, and instead moves that responsibility for user-level definition.
+- Thread migration downsides don't feel like real downsides; how are they a negative?
+	If you can write code that isn't multi-threaded, it will generally have less complexity than code that is written to be multi-threaded.
+	The need for locks, the non-composability of locks, deadlock, and race conditions all make multi-threaded code more difficult to get right.
+	If only a single thread executes in a body of code (as with single-threaded servers), you might avoid some of that complexity.
+	So in this sense, the multi-threaded side-effect of thread migration is certainly a downside.
+- When do we switch between stacks in thread migration?
+	The kernel will save the stack and instruction pointers to return to in the client (when the IPC has completed), and then sets the instruction pointer to the entry point designed in the synchronous invocation callgate resource in the server.
+	The kernel then "upcalls" into the server (i.e. switches from kernel to user-level).
+	The first job of the user-level code is to acquire a stack!
+	The downside of this is that the initial code executed in the server is an assembly stub, but it quickly acquires a stack, and then calls the C handler for the target function.
+	On return, the saved IP/SP in the client are restored before switching back to the client.
+- If you can have multiple schedulers in Composite, can you have different schedulers on each core?
+	You absolutely can!
+	You don't need to have the same set of schedulers on each core.
+- What are the data-structures used to track execution during IPC using thread migration?
+	See the image:
+
+![The core data-structure is an "invocation stack" in the thread structure in the kernel. It tracks the instruction pointer (IP), stack pointer (SP) of a client component when it invokes the server. If that server (`s`) invokes another, `s` (and its IP/SP) are saved in the invocation stack. Returning from an invocation pops an entry off the stack to restore.](./resources/thdmig.png)
