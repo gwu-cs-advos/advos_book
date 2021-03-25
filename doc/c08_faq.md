@@ -999,3 +999,101 @@ This is complicated as it involves concurrency, data movement, synchronization, 
 	See the image:
 
 ![The core data-structure is an "invocation stack" in the thread structure in the kernel. It tracks the instruction pointer (IP), stack pointer (SP) of a client component when it invokes the server. If that server (`s`) invokes another, `s` (and its IP/SP) are saved in the invocation stack. Returning from an invocation pops an entry off the stack to restore.](./resources/thdmig.png)
+
+## L10: Security Foundations
+
+- How can large systems like Docker be mathematically verified?
+	Practically, they cannot.
+	Only relatively simple software (e.g. microkernels) can currently be verified.
+	This justifies why you'd want the software that must be at the core of your TCB to be simple and small (as in microkernels).
+	Experience in verifying a 10K Lines of Code (LoC) microkernel is that the amount of proof code to verify it is on the order of 200K LoC.
+	So it is not realistically possible to verify a million lines of code.
+- What is an alternative to path-based namespacing of resources?
+	CBOSes use a flat namespace of capabilities to reference resources.
+	`memcached` uses a flat "key" namespace to index cached objects.
+- Does Linux's open-source and "million eyes" policy make it more or less secure?
+	It is hard to know for sure without companies with popular proprietary OSes sharing more information about their security.
+	The benefit of open development is that more people will have the opportunity to catch bugs.
+	The downside, of course, is that adversaries have access to all of the source code, so have to reverse-engineer less behavior to find exploits.
+	A long-standing principle of secure system design is that "security through obscurity" does not work.
+	Just because an implementation is hidden, does not make it more secure.
+	The main question, for me, is simply if the kernel developers (and more importantly, the kernel development *process*) result in code that is thoroughly vetted for security.
+	Security cannot be a secondary consideration in system design.
+	If it is, adversaries having access to the code can be quite dangerous.
+	But, fundamentally, adversaries having access to the code doesn't make them less secure.
+	Exploitable bugs do and will exist in each system.
+- It seems like the principles of the economy of mechanism, and separation of privilege seem to conflict; do they?
+	In one sense, breaking privilege across different protection domains seems like it will create more mechanism in the system (to create and manage protection domains).
+	However, this is only true when viewed in isolation.
+	When a system is viewed holistically, there is a pervasive need for protection domains independent of the separation of privilege.
+	Thus, this is code and "mechanism" that will exist regardless of separation of privilege.
+
+	However, it is likely true that the separation of the privilege will increase the complexity of the application itself.
+	In this way, these are minorly in opposition.
+	It is important to understand the motivation behind the principles, so that the correct trade-offs can be made here.
+- Why compare processes to containers and VMs?
+	Aren't processes not like the others?
+	Processes in UNIX are intended to be the unit of isolation.
+	Even in containers, this is still true.
+	Thus, you want to compare these thinking of them all as units of isolation in the system.
+	However, it is challenging to isolation processes from each other as they access the same file system.
+	They can easily communicate (which might compromise confidentiality) by simply sharing files in `/tmp/`; they see each other's process information in `/proc`, and a simple attack on the `root` account will prevent any semblance of CIA.
+- How is tamperproof-ness possible?
+	It seems like DoSes are always possible, at the very least, right?
+	If the refmon includes no bugs (it faithfully implements a specification), and the specification prevents any modifications of the refmon, then the refmon is tamperproof!
+	If it isn't formally verified, but is small enough that we can gain confidence in its implementation, then it has a high-degree of (but not absolute) tamperproof-ness.
+	There are always complications, and there is a question of how far you're willing to go.
+	For example, do we want to prevent the image of the refmon on persistent store from being modified when the system is powered off?
+	Do we want to prevent the hardware from being tampered with?
+- Is it really possible to formally verify the code?
+	Yes!
+	seL4 is a formally verified microkernel.
+	The "proofs" are often written in languages like Coq and Isabelle/Hol.
+	These proofs are automatically checked by the computer to verify their veracity, and the proofs are written considering the actual code that executes on the system.
+	Imagine doing proofs by contradiction in a proof programming language that are checked for correctness by the computer!
+- Is the separation of privilege (SoP) just a combination of the principle of least privilege (PoLP) and the principle of least common mechanism (PoLCM)?
+	PoLP is intended to limit the functional interfaces and resources that we have access to to exactly those required to complete a job.
+	PoLCM dictates that you should share as few modules between two untrusting applications as possible.
+	The SoP is a prescription to break a single module into multiple coordinating modules.
+	SoP will likely result in a system in which the PoLP can be more powerfully applied: each smaller module likely uses only a subset of the resources compared to before they were broken into multiple modules.
+	However, the PoLCM is really a statement about the modules that are shared between applications.
+	I don't see a relationship between applying SoP and an increase in PoLCM.
+- In a CBOS, why does the refmon index into capability tables to find the resource pointer instead of just enabling the application to have the resource pointer?
+	Applications cannot have pointers to the resources in the general case as those resources are likely data-structures in the kernel.
+	User-level cannot safely directly reference kernel data-structures.
+	Thus the capability table, and the CBOS system call handler provides a controlled set of operations that can be performed only on the resources a component has been given access to.
+- When would the CBOS add a reference into the capability table for a component?
+	During the delegation operation, or during the retyping of memory into a specific resource (i.e. creating a thread from untyped memory).
+- Don't economy of mechanism (EoM) and Defense in Depth (DoD) contradict each other?
+	Yes, often.
+	However, if you already have a massively complex system (e.g. Linux), then DoD is really your main "go to" options to increase security.
+	You don't fundamentally make the system more secure, but you do make it much more practically difficult for the attacker to subvert the system.
+- Is a system secure if it is successfully used on a massive number of webservers?
+	When talking about the security of systems, the "attack surface" is important.
+	The attack surface of a webserver is 1. the networking stack, and 2. the webserver parsing and other logic.
+	So you typically have to compromise the webserver, and *then* attempt to compromise the entire system (if that's your goal).
+	When considering if the OS seeks to provide strong security, we have to consider: once an attacker has access to the webserver, will it be able to break CIA?
+	Many web-facing systems assume that if the webserver is compromised, the game is over, and the attacker has access to everything.
+	A fundamentally secure system might be able to separate the webserver from any other execution, and all resources outside of those necessary to make the webserver work.
+	In such a system, an attacker wouldn't be able to do as many "bad things" as in a monolithic system in which a hacker has an easier path to take over the entire system.
+- How does Linux prevent 0-day bugs?
+	Is it just manual code review that helps it stay secure?
+	Manual code inspection is the main, traditional path.
+	More recently unit tests, [fuzzing](https://www.kernel.org/doc/html/v4.14/dev-tools/kcov.html), and compiler techniques (e.g. [KASAN](https://www.kernel.org/doc/html/v4.14/dev-tools/kasan.html), [sparse](https://www.kernel.org/doc/html/v4.14/dev-tools/sparse.html), and [UBSAN](https://www.kernel.org/doc/html/v4.14/dev-tools/ubsan.html)) are used to increase confidence in the code (e.g. look for undefined behaviors).
+	None of these techniques prove correctness, and simply try to find as many bugs as they can.
+- Are there examples of defense in depth in OSes (not just browsers)?
+	[ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization), security modules (see book), [w^x](https://en.wikipedia.org/wiki/W%5EX), and countless other techniques are part of the OS playbook for trying to raise barriers for attackers.
+- When should security be designed into the system?
+	If you want a fundamentally secure system, you very much want to design the system from the ground up at the start.
+	However, most systems have to figure out how to design security *into the system* post-hoc.
+	Many of the defense in depth techniques are added to systems that weren't designed for security.
+- How far does security have to go when we don't even really trust kernel devs (e.g. driver developers)?
+	This is part of the motivation for microkernels: we don't have to trust all modules in the OS if they are mutually isolated from each other.
+	They can (with plenty of engineering) fail separately.
+	Even Linux enables some low-performance devices to be implemented in user-level!
+	It is only the lack of fast IPC that motivates placing devices in the kernel, in general.
+	Kernel bypass approaches such as DPDK (used in the Demikernel) are designed primarily to move devices to user-level!
+- What in Linux assigns read/write/execute bits?
+	Is this the refmon?
+	Start-up programs, programs to create user accounts, and users (with `chmod`) set these bits.
+	UNIX uses discretionary access control (DAC) in which a user (or `root`) can change any of these bits on their files.

@@ -34,7 +34,7 @@ System security revolves around defining and constraining which principals can a
 We often intuitively think about cryptography when we discuss security.
 Cryptography is often used to algorithmically limit which principals can access encrypted data.
 We think about OS security as focusing around abstractions to provide isolation, and limit access to system resources.
-We've already seen now *namespaces* are integral in this.
+We've already seen how *namespaces* are integral in this.
 Namespaces prevent resources from even being addressed by a process when they aren't present.
 *Capabilities* in a CBOS mediate access to primitive resources in the system (pages and other kernel resources).
 *Hierarchical namespaces* define the set of file-like resources accessible to a process in Plan 9, and, importantly, abstract resources can be defined in user-level services, thus the system can be arbitrarily extended.
@@ -69,6 +69,7 @@ A good "first cut" at what we're trying to accomplish in secure systems is that 
 
 The core of OS security is the **reference monitor** (*refmon*).
 When a principal requests access to a resource, the refmon validates that it has the *privilege* to access the resource.
+A refmon should have the following properties:
 
 - *Complete Mediation* -
 	All requests to access resources in the system must be checked, and allowed or denied based on the refmon's mechanisms and policies.
@@ -163,11 +164,15 @@ These are the modus operandi that we should follow by default, and depart from o
 
 ## Mechanisms
 
+How should we design the refmon?
+
 Taxonomy
 
 - Confinement
 - Access control matrix
 - Mandatory vs. discretionary access control
+- Ambient authority, confused deputy, black/white list
+- Design tension: moving less secure fundamental systems toward security, or moving fundamentally more secure systems to more usability?
 - Information flow control
 
 - LSM "hooks" (what are "hooks"?) for reference monitor implementation
