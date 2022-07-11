@@ -1,0 +1,3 @@
+- Add "On the Criteria to be used in Decomposing Systems into Modules" by Parnas
+- Update design section with a discussion about decomposition
+- Add information/thoughts from "A Philosophy of Software Design" by John Ousterhout
