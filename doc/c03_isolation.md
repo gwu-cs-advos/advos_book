@@ -168,6 +168,68 @@ At the high-end, getting the most out of every single cycle often requires bypas
 However, across all sizes, security tends to be a concern that requires simplicity and is incompatible with monolithic structures.
 So when we think about OS design, it is useful to understand the goals.
 
+A similar analogy for general purpose system design can be found in the somewhat infamous F-35 stealth fighter.
+This airplane is known for its $1.7 Trillion price point.
+That value is far beyond any intuitive understanding of scale, but we can relate it to other large values.
+For example, the GDP of the USA in 2014 was around 10 times larger (around [$17 Trillion](https://datacommons.org/tools/timeline#place=country%2FUSA&statsVar=Amount_EconomicActivity_GrossDomesticProduction_Nominal&chart=%7B%22amount%22%3A%7B%22pc%22%3Afalse%2C%22delta%22%3Afalse%7D%7D)).
+Put another way, all [federal government taxes from 2003](https://www.thebalancemoney.com/current-u-s-federal-government-tax-revenue-3305762) could barely cover the cost.
+One would hope that these aircraft are amazing, given their cost.
+The answer to that question will likely only be known with time.
+Regardless, they provide a strong analogy for systems designed and implemented with a broad set of general requirements.
+Like general purpose OSes, they are meant to perform at top-of-class, while also serving many different purposes.
+
+Why do I say that the F-35 is a general-purpose airplane?
+First, it is a ["multirole combat aircraft"](https://en.wikipedia.org/wiki/Multirole_combat_aircraft).
+At the highest level, this means that the airplane is mean to be able to fight other aircraft, provide reconnaissance and sensor jamming, carry and use bombs, provide fire on ground positions, and take on anti-aircraft defences.
+A single aircraft that can take on all of these roles is not likely the be the best in any of them, as they all imply trade-offs.
+They won't provide bombing capabilities as strong as aircraft tailor-made to have the space and weight capacity of bombers.
+They won't have the dogfighting capabilities of airplanes created for anti-air roles (e.g. the F-22).
+
+The F-35's ["jack of all trades"](https://en.wikipedia.org/wiki/Jack_of_all_trades,_master_of_none) status is more than cemented by the social process under which it was engineered.
+The Air Force, Navy, and Marines decided to work together to create the F-35, despite having different requirements for the aircraft.
+This yielded [different](https://en.wikipedia.org/wiki/Lockheed_Martin_F-35_Lightning_II#Differences_between_variants) [*variants*](https://en.wikipedia.org/wiki/Lockheed_Martin_F-35_Lightning_II#Variants):
+
+- The Air Force needed a capable fighter.
+    This yielded the F-35A that has the lightest weight, and has the best performance.
+- The Marines wanted to replace Harriers that could take off from short runways, and land vertically.
+    This meant having a massive fan and thrust vectoring systems to enable vertical take-off and landing.
+	This is a marvel of engineering, but is massively complex.
+	The assemblies that convert from power-train transfer from the engine, to the fan alone are mind-boggling.
+	For this complexity, the F-35B loses 1/3 of its fuel capacity, maximum payload weight, and a significant amount of performance.
+- The Navy needed a fighter that could take off and land from an aircraft carrier.
+    This requires significantly more wing area to generate lift at lower speeds, and it requires stronger landing gear and a reinforced landing hook.
+	These requirements yielded the F-35C which is significantly heavier, thus trading performance.
+
+A reasonable question is why, given the differing requirements, they tried to fit them all into a single airplane?
+Historically, they would have created a completely different airplane for each set of requirements.
+There is a significant advantages to basing all work on a single system that all focus on cost savings.
+
+1. A smaller engineering team will be able to focus on solving many problems shared between all variants.
+    Toward this, the goal was that 70-90% of the components were shared across the variants.
+	This is the *motivation* behind the shared initiative.
+	Unfortunately, the actual airplanes, in the end, [share only 20-25% of their components](https://sgp.fas.org/crs/weapons/RL30563.pdf) due to the significant deviation in requirements.
+2. A pilot trained for one platform should be able to use another with minimal re-training.
+    Pilot training is very expensive as each flight hour costs [over $25K](https://www.airandspaceforces.com/lockheed-martin-says-f-35-sustainment-costs-have-fallen-by-half-another-35-percent-coming/) (initially, up to $41K!), so any attempt to optimise training saves costs.
+
+Linux and general-purpose OSes have strong analogies to the F-35.
+Linux is meant to be a generalist by aiming to support execution on
+
+1. high-throughput servers,
+2. desktops with reasonable response times, and
+3. embedded systems with limited hardware.
+
+It also has to operate with highly varying requirements:
+
+- Low MiB of DRAM on embedded systems^[Note that Linux doesn't try and reasonably work on microcontrollers with the 10s of KiB of SRAM.] -- which requires carefully minimizing the size of kernel data-structures; removing features that aren't necessary (e.g. networking); and shrinking to the bare-minimum the startup system.
+- Scaling up to PiBs of DRAM -- which requires superpage support; APIs and logic for using transparent superpages; and a careful and complex design of all algorithms to scale with increasing memory.
+- Scaling up to a large number of cores -- which requires NUMA optimizations and APIs (to support multi-socket systems); the implementation of shared data-structures to use scalable coordination including fine-grained locking, read/write optimizations, and Read-Copy-Update; I/O path optimizations (such as RSS) to ensure that processing of each connection stays affine to a core; and the re-architecture of scheduling to carefully promote threads to always execute on the same core while also balancing "work" across cores.
+- Providing fast and real-time response times to I/O interrupts and/or sensor input -- which requires blocking locking implementations that include provisions to avoid unbounded priority inversion (e.g. priority-inheritance); avoiding disabling interrupts for extended amounts of time (e.g. during spin-lock hold time); and strict scheduling that understands priorities, deadlines, and budgets.
+- Providing a secure multi-tenant/user environment -- which requires isolating tenants (per-user resources and containers); isolating applications (per-application users in Android); and providing programmable resource access through services (e.g. `systemd`, Android `ServiceManager`).
+- Ensure effective mobile power management -- which requires CPU and I/O power management (frequency and voltage scaling), suspension support, management of and work assignment between big/little cores, and abstractions for application power awareness.
+
+Similar to the F-35, there is a significant incentive to provide a single technological system that provides all roles, and satisfies all requirements.
+Developers and users trained in Linux, can benefit with minor retraining to use additional features.
+
 ## Example OS Design: Composite
 
 This chapter on OS design motivates the need to consider
