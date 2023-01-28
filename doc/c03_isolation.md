@@ -192,9 +192,10 @@ This yielded [different](https://en.wikipedia.org/wiki/Lockheed_Martin_F-35_Ligh
 - The Air Force needed a capable fighter.
     This yielded the F-35A that has the lightest weight, and has the best performance.
 - The Marines wanted to replace Harriers that could take off from short runways, and land vertically.
-    This meant having a massive fan and thrust vectoring systems to enable vertical take-off and landing.
-	This is a marvel of engineering, but is massively complex.
-	The assemblies that convert from power-train transfer from the engine, to the fan alone are mind-boggling.
+    This meant having a massive lift fan and thrust vectoring systems to enable vertical take-off and landing.
+	This is a [marvel of engineering, but is massively complex](https://www.youtube.com/watch?v=1lCOgFPtaZ4&list=TLPQMjgwMTIwMjPLzYNQ_iQd8w).
+	The lift fan alone, weights 1.2 tons.
+	The assemblies (clutches and drive train) that convert from power transfer from the engine, to the fan alone are mind-boggling.
 	For this complexity, the F-35B loses 1/3 of its fuel capacity, maximum payload weight, and a significant amount of performance.
 - The Navy needed a fighter that could take off and land from an aircraft carrier.
     This requires significantly more wing area to generate lift at lower speeds, and it requires stronger landing gear and a reinforced landing hook.
