@@ -1,5 +1,13 @@
 # System Design
 
+## TODO
+
+- Using the semantic gap and leaky abstractions as opposing issues in an abstraction.
+- Analysis of `mmap` interface and [implications for data-bases](https://db.cs.cmu.edu/papers/2022/cidr2022-p13-crotty.pdf)
+- Analysis of `fork`'s [design](https://www.microsoft.com/en-us/research/uploads/prod/2019/04/fork-hotos19.pdf) and other options (e.g. `CreateProcessA`/`posixspawn`)
+
+## Complexity
+
 - Design complexity:
 	[Brooks](http://worrydream.com/refs/Brooks-NoSilverBullet.pdf) observed that much software complexity is essential, but some is also accidental
 
