@@ -235,6 +235,8 @@ The general question include how you should *name* system resources, how you can
 	- [go](https://golang.org) is a programming language and environment at encourages using synchronous and asynchronous channels, along with lightweight computations (goroutines) to handle concurrency.
 	- [libuv](https://libuv.org/) is a library that attempts to use an *event-based* programming model (versus a *thread-based* programming model) based on *callbacks*.
 		It is the framework underlying `node.js`, and mimics the closure-based programming model common in javascript.
+
+	Please reference the UNIX I/O history discussion in the Examples section.
 - *Parallelization.*
 	For the most part, you want to be able to hide any parallelism behind an interface.
 	However, it is often the case that the parallelism constraints span interfaces.

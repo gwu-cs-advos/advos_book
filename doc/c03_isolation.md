@@ -201,6 +201,14 @@ This yielded [different](https://en.wikipedia.org/wiki/Lockheed_Martin_F-35_Ligh
     This requires significantly more wing area to generate lift at lower speeds, and it requires stronger landing gear and a reinforced landing hook.
 	These requirements yielded the F-35C which is significantly heavier, thus trading performance.
 
+A simple example of how this diversity of requirements, which implies complexity, actually creates even *more* complexity down the line:
+The lift fan for the F-35B is directly behind the cockpit.
+This means that there was no room for the traditional hinge for the canopy (the glass that surrounds the pilot) at the rear of the canopy.
+This is traditionally at the rear so that when the canopy opened during an ejection, wind would naturally pull the canopy off.
+So the hinge had to be at the front of the cockpit, which means that it couldn't easily open during an ejection (the wind would push it down).
+This required novel, complex techniques to explode the canopy in a controlled way upon ejection -- which had to answer the questions: how can such mechanisms be light, not hurt aerodynamics, and be safe for the pilot.
+This is all *follow-on, additional* complexity only due to the complexity of sharing a platform across all aircraft variants.
+
 A reasonable question is why, given the differing requirements, they tried to fit them all into a single airplane?
 Historically, they would have created a completely different airplane for each set of requirements.
 There is a significant advantages to basing all work on a single system that all focus on cost savings.
@@ -230,6 +238,44 @@ It also has to operate with highly varying requirements:
 
 Similar to the F-35, there is a significant incentive to provide a single technological system that provides all roles, and satisfies all requirements.
 Developers and users trained in Linux, can benefit with minor retraining to use additional features.
+
+## Discussion: Costs of Complexity
+
+Even in a general-purpose system with a given set of functionality, the *specific requirements* for the system can impact the resulting complexity of the system.
+The analogy that I'll use here is in the [trade-offs in rocket construction](https://everydayastronaut.com/rocket-engine-cycles/).
+Rockets are effectively controlled explosions that direct force in a single direction to propel a payload -- often to an escape velocity that sends it into orbit, or beyond.
+There are many ways to design a rocket, and the size of the rockets, their reusability, their ability to turn off in an emergency, their cost, and its [specific impulse](https://en.wikipedia.org/wiki/Specific_impulse) (think: ability to push the payload).
+Lets focus on three specific designs:
+
+- Solid-fuel rockets are powered by a compressed solid material that is explosive.
+    Some sort of a igniter will light the material, and exposed layers will burn, exposing more material to continue burning.
+	The explosion is directed to the exhaust nozzle, which expels the gas jet as thrust.
+    Fireworks (e.g. bottle rockets) use solid-state boosters, with a fuse igniter.
+
+	These rockets are very few (if any) moving parts, and the properties of the rocket are determined at design and construction time (i.e. which fuel/oxidizer is used, what ratios, what granularity).
+	As such, they are very simple.
+	Unfortunately, they have less power, and cannot be turned off once started.
+- Liquid propellants are more complicated as the pressure in the rocket must be higher than the pressure of the exhaust (lest the combustion back-track into the rocket).
+    A simple design is to ensure that the liquid tanks are at a sufficiently high pressure for the duration of firing.
+	Unfortunately, requires dealing with the complexity of how to contain and maintain the high-pressure liquids.
+	This is generally quite a bit more complicated that solid-fuel rockets that are so simple to maintain, they have been supporting energetic 4th of July celebrations in the US for quite some time.
+	Due to the pressure requirements, these also have significantly less performance than pumped liquid propellant rockets.
+- Pumped-liquid propellant rockets maintain high pressure above the combustion-chamber using pumps.
+    Pumps force the liquids into the combustion chamber, thus provide some control as the rocket is firing.
+    These pumps must run at baffling rotations-per-minute (RPM), which poses the question: how are they powered?
+	The answer is often *very* complicated: they bleed off some of the fuel and oxidizer liquids, combust them in a turbine, which drives the pump.
+	So the pump uses fuel/oxidizer which it is, itself, pumping -- creating a natural chicken and egg problem.
+	How does the pump's turbine get fuel and oxidizer to power itself?
+	This often requires another means to "bootstrap" the system, and get the pump up to speed before it is self-maintaining.
+	It isn't uncommon to simply use high-pressure liquid tanks (as in the previous rocket design) to provide the pressure necessary to get the turbine bootstrapped.
+
+	The complexity of these systems is baffling, but the payoff is large: the specific impulse of these systems can be quite high.
+	The combustion temperatures are so high, that they would melt the rocket nozzle.
+	So it is not uncommon to pump the fuel through "veins" in the nozzle to actively cool it down, before sending them into the combustion chamber.
+
+Functionally, all of these rocket designs are simply there to propel a payload into the sky.
+But the *required performance properties* force increasing complexities in the design.
+These requirements take these rockets from fireworks that children can light off, up to designs that require immensely cold containment vessels and material supply chains, self-powering turbines, and actively-cooled nozzles.
 
 ## Example OS Design: Composite
 
