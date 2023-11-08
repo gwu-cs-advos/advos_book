@@ -7,3 +7,4 @@
     - capability access (bounds check vs. wrapping)
 	- memory allocation (panic on `NULL == malloc(...)`) e.g. `xmalloc`
 	- library vs. application for error APIs
+- Add articles on the [semantic gap](https://www.riverphillips.dev/blog/go-cfs/)
