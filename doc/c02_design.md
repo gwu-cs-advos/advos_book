@@ -3,6 +3,9 @@
 ## TODO
 
 - Using the semantic gap and leaky abstractions as opposing issues in an abstraction.
+
+	- Example of design to span the semantic gap: wiring (as in vehicle wiring) has to handle electrical noise. The system requires accurate signals to be communicated, but the implementation does not provide a foundation amenable to that (i.e. the gap). The most obvious approach to this is to add *shielding* (think: a Faraday Cage for a wire). This can protect the electrical integrity of the signal, but has significant costs: size, weight, and cost. But we can be more intelligent: if we use a twisted pair (two wires, twisted together), then each wire is the same distance from the interfering source, on average. Instead the wires can use [differential signalling](https://en.wikipedia.org/wiki/Differential_signalling) they carry symmetrical signals (opposite in polarity). The analogy is that one wire will signal a positive value, while the other the negation, but both of equal amplitude (e.g. 1 and -1, or 0.5 and -0.5). Noise will equally impact the signals -- for example, causing signals to degrade by the same value, 1 and -1 going to 1.2 and -0.8 -- which can be cancelled by the analog of simple arithmetic: (1.2 + -(-0.8))/2 = 1. Sometimes a little cleverness goes a long way toward bridging a semantic gap.
+
 - Analysis of `mmap` interface and [implications for data-bases](https://db.cs.cmu.edu/papers/2022/cidr2022-p13-crotty.pdf)
 - Analysis of `fork`'s [design](https://www.microsoft.com/en-us/research/uploads/prod/2019/04/fork-hotos19.pdf) and other options (e.g. `CreateProcessA`/`posixspawn`)
 
