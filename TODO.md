@@ -14,3 +14,8 @@
 	- Tinygrad for ML
 	- Alan Kay about [complexity vs compliated](https://tinlizzie.org/IA/index.php/Alan_Kay_at_Qualcomm:_Is_it_really_%22Complex%22%3F_Or_did_we_just_make_it_%22Complicated%22%3F) and modern [complexity](https://tinlizzie.org/IA/index.php/How_Complex_is_%22Personal_Computing%22%3F_(2009)) and his institute's view on how to make a [simple OS](https://tinlizzie.org/VPRIPapers/rn2006002_nsfprop.pdf)
 	- [Ian Piumarta's](https://www.piumarta.com/software/) projects ooze simplicity
+
+- More systems reference
+
+	- [MIT class](https://6826.csail.mit.edu/2020/)
+	- [Lampson's links](https://bwlampson.site/) including updated [sys design notes](https://bwlampson.site/Slides/Hints%20and%20principles%20(HLF%202015)%20abstract.htm)
