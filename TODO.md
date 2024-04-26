@@ -21,3 +21,5 @@
 	- [Lampson's links](https://bwlampson.site/) including updated [sys design notes](https://bwlampson.site/Slides/Hints%20and%20principles%20(HLF%202015)%20abstract.htm)
 
 - [Rigorous System Design](https://www-verimag.imag.fr/PEOPLE/Joseph.Sifakis/papers_pdfs/Rigorous%20System%20Design.pdf) - decent guides (sep of concerns, component-based design, coherency, and correct by construction), but unclear how scale
+
+- Argument for simplicity, and with a ToC that is out of software design: [What made Apollo a Success](https://ntrs.nasa.gov/api/citations/19720005243/downloads/19720005243.pdf)
