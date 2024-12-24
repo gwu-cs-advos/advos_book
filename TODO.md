@@ -23,3 +23,4 @@
 - [Rigorous System Design](https://www-verimag.imag.fr/PEOPLE/Joseph.Sifakis/papers_pdfs/Rigorous%20System%20Design.pdf) - decent guides (sep of concerns, component-based design, coherency, and correct by construction), but unclear how scale
 
 - Argument for simplicity, and with a ToC that is out of software design: [What made Apollo a Success](https://ntrs.nasa.gov/api/citations/19720005243/downloads/19720005243.pdf)
+- Add link to a Binder [video](https://www.youtube.com/watch?v=Fb4UoqXPEtI&list=TLPQMDUwODIwMjSWs7PT98Ul8Q) when discussing android
