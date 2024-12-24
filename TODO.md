@@ -8,7 +8,7 @@
 	- memory allocation (panic on `NULL == malloc(...)`) e.g. `xmalloc`
 	- library vs. application for error APIs
 - Add articles on the [semantic gap](https://www.riverphillips.dev/blog/go-cfs/)
-
+- Accidental vs. essential [complexity](https://curtclifton.net/papers/MoseleyMarks06a.pdf) ([summary](http://kmdouglass.github.io/posts/summary-out-of-the-tar-pit/))
 - Examples for simplicity
 
 	- Tinygrad for ML
