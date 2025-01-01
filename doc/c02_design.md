@@ -8,6 +8,7 @@
 
 - Analysis of `mmap` interface and [implications for data-bases](https://db.cs.cmu.edu/papers/2022/cidr2022-p13-crotty.pdf)
 - Analysis of `fork`'s [design](https://www.microsoft.com/en-us/research/uploads/prod/2019/04/fork-hotos19.pdf) and other options (e.g. `CreateProcessA`/`posixspawn`)
+- Discussion of [Lean Software](https://cr.yp.to/bib/1995/wirth.pdf), likely along with the "decomposing" Parnas paper
 
 ## Complexity
 

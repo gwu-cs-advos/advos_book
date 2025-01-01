@@ -1,0 +1,13 @@
+index:
+  title: Advanced OS Slides
+slides:
+  theme: theme.css
+  separator_notes: "^Notes?:"
+  highlight_theme: nord
+  separator_vertical: ^\s*-v-\s*$
+revealjs:
+  transition: fade
+plugins:
+  - name: RevealMermaid
+    extra_javascript:
+      - https://cdn.jsdelivr.net/npm/reveal.js-mermaid-plugin/plugin/mermaid/mermaid.min.js
