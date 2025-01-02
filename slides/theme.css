@@ -28,6 +28,7 @@
     --gap-darkslate: #27374D;
     --gap-slate: #526D82;
     --gap-lightslate: #9DB2BF;
+    --gap-slatelink: #FFF4CC;
     --gap-slateaccent: #DDE6ED;
 
     --gap-background: var(--gap-darkslate);
@@ -51,7 +52,7 @@
     --font-size: 2rem;
     --inset-font-size: 0.8em;
 
-    --a-color: var(--gap-accent-color);
+    --a-color: var(--gap-slatelink);
     --inline-code-bg-color: var(--gap-insetbackground);
     --inline-code-border-color: var(--gap-insetbackground);
     --code-bg-color: var(--gap-codebackground);
