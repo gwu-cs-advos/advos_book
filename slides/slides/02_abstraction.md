@@ -220,6 +220,19 @@ Semantic gap - If a task requires capabilities hidden and made inaccessible by t
 
 ---
 
+## Semantic Gap Example: `mmap`
+
+`mmap` lets you directly access a file using virtual addresses and load/store.
+
+Many DB systems have been tempted to use `mmap` for fast access to DB files.
+- But what if the system runs out of memory?
+- Kernel "paging" policies move memory$\to$disk
+- Later, suffer page-fault and disk latency to get data
+
+[DB semantic gap](https://db.cs.cmu.edu/papers/2022/cidr2022-p13-crotty.pdf): DB wants to manage what in the DB is in memory, `mmap` transparently removes that control.
+
+---
+
 ## Deep Component - Networking Example
 
 `socket`s augment the VFS API to enable network communication

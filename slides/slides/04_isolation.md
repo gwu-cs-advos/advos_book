@@ -866,6 +866,40 @@ Upsides:
 
 ---
 
+## Example: Linux Namespace
+
+[Linux namespaces](https://en.wikipedia.org/wiki/Linux_namespaces):
+1. Mount points & filesystem
+2. Process identifiers: `pid`s
+3. Network namespace (IP, routing, firewall rules, sockets, ...)
+4. SysV IPC namespace
+5. UTS - host and domain
+6. User/group ids (id = 0)
+7. `cgroups` - ids to reference the resource group
+8. Time namespace - system times
+
+---
+
+## Example: Containers
+
+Containers provide APIs/facilities to *partition* each namespace
+
+For example:
+- two processes in separate containers can have the same `pid`.
+
+Docker:
+- partition the namespaces to make each container feel independent
+
+---
+
+## Example: Containers
+
+Do containers provide isolation?
+- Kernel still provides name bindings to resources - no modification to vertical isolation
+- Disjoint names across containers enable restricted resource sharing - increased horizontal isolation
+
+---
+
 ## Isolation Defaults
 
 *Security by default:*
