@@ -388,9 +388,76 @@ tcp/2 1 Established connect
 
 ## Separation of Mechanism and Policy
 
+> The identification of a piece of software as "policy" or "mechanism" is a relative one. The implementor of a (virtual) resource establishes policies for the use of that resource; such policies are implemented with mechanisms provided by external software.
+> Thus a hierarchy exists (under the relation "is implemented using") in which higher-level software views higher-level facilities as mechanisms.
+> - Levin et al.
+
 -v-
 
 - [Mechanism/Policy Separation in Hydra](https://dl.acm.org/doi/10.1145/800213.806531) by Levin et al.
+
+---
+
+## Separation of Mechanism and Policy
+
+A perspective on dependencies
+
+- What mechanisms is my abstraction providing to its clients?
+  - often: what is the resource and its properites?
+- What are the policies it wishes to enable?
+  - how are resources to be used?
+- Policies determine how to deploy and use the resource
+
+---
+
+## Virtualization
+
+Virtualizing an interface
+- Providing an interface $A$ similar to another $A'$
+- ...where $A'$ depends on $A$
+- ...thus providing a higher-level abstraction
+- Example: VMs vs. hardware
+
+Virtualizing a resource
+- Provide a more abstract version of that resource
+- CPU $\to$ thread
+- physical memory$\to$virtual memory
+- interrupt$\to$signal
+
+---
+
+## Case Study: Scheduling
+
+Four systems that handle scheduling differently:
+
+1. Linux
+2. Hydra
+3. Exokernel
+4. Composite microkernel
+
+Questions
+- What are the trade-offs for each?
+- What is difficult or impossible?
+- What is unclear in the design?
+
+---
+
+1. *Linux* - fixed set of policies (general-purpose, EDF, fixed priority), interfaces to set per-thread parameters (priority, etc...)
+   - `cgroups` can assign rate-limits to collections of threads, either weighted-fair, or a limit of N units over M
+2. *Hydra Scheduling* - a scheduling policy process can start/stop their processes, and alter their parameters
+   - Kernel mechanism selects the policy process, and schedules its threads according to their parameters
+   - parameters include timeslice and priority
+   - execute until timeslice expires, or process blocks
+   - kernel has fairness policies between policy processes, each w/ N out of M time units
+
+---
+
+3. *Exokernel Scheduling* - The kernel maintains a timeline of timeslices, processes are given a proportion of time, and they address which *slots* in the timeline in the future they want to use.
+   - The kernel simply switches to the corresponding process at each timeslice.
+4. *Composite Microkernel* - A scheduler component has the ability to dispatch directly to its threads.
+   - When a thread wants to block, it uses IPC to invoke the scheduler, which can dispatch to another thread.
+   - The scheduler, when dispatching can program the timer interrupt to fire at $c$ cycles in the future.
+   - There can be multiple schedulers.
 
 ---
 
@@ -516,3 +583,52 @@ Example:
 
 - Does the client need to track data, or can the server just be asked for it?
 - Idempotent abstractions can lead to less state tracked in client ($\textsf{select}/\textsf{poll}$ vs. $\textsf{epoll}$)
+
+---
+
+# Implementation Optimizations
+
+---
+
+## Data Aggregation
+
+- $t$ interface cost
+- $c$ communication cost
+- $N(t + c)$ send N messages
+- $Nt + c$ batch N messages
+
+> Trades *Latency* for *Throughput*
+
+---
+
+## Data Aggregation: Batching Policies
+
+- Batch $N$:
+- Batch based on concurrency:
+- Time-bounded batching
+
+---
+
+## Data Aggregation: Examples
+
+- Buffered I/O
+- UNIX pipes
+-
+-
+
+---
+
+## Action Aggregation
+
+---
+
+## Action Aggregation: Examples
+
+---
+
+## Combining Optimizations
+
+[Zygote](https://source.android.com/docs/core/runtime/zygote) processes in Android
+- cache the output of
+- aggregated actions
+- to quickly create pre-initialized app startup

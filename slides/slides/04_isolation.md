@@ -900,6 +900,19 @@ Do containers provide isolation?
 
 ---
 
+## Example: Capabilities
+
+Each component has a *capability table*:
+- Component $c_i$: $captbl_i[cap] \to r_a$
+- *All* syscalls request to perform an operation on a capability-indexed resource
+- $syscall(cap, op, ...): captbl_i[cap] \to r_a, op(r_a)$
+
+Single namespace: capabilities
+- Clearly isolate component
+- Can *only* access resources in capability table
+
+---
+
 ## Isolation Defaults
 
 *Security by default:*
