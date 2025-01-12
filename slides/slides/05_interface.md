@@ -575,6 +575,18 @@ The *semantic gap* for an abstraction/policy can often be bypassed by instead us
 
 ---
 
+## Contradictions
+
+> KISS: Keep it Simple, Stupid. Don't Generalize
+
+- "Hints and Priniciples for Computer System Design", [Lampson](https://arxiv.org/pdf/2011.02455)
+
+> "unnecessary specialization...is a significant contributor to software complexity"
+
+- "Philosophy of Software Design", Ousterhout
+
+---
+
 ## Powerful Interfaces and Components
 
 **Composability**: Combine mechanisms $\to$ powerful policies
