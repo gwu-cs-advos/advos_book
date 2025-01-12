@@ -1504,9 +1504,84 @@ Find common sequences of execution, and move them into server components.
 - Stored procedures in DBs
 - `ebpf` programs in the Linux kernel
 - graphql to specify complex, nested queries
-- Microkernel IPC
-  - `send` + `recv` (like `read` & `write`) versus
-  - `call` and `reply_and_wait`
 - [Zygote](https://source.android.com/docs/core/runtime/zygote) processes in Android
   - aggregated initialization actions
   - to quickly create pre-initialized app startup
+- Microkernel IPC
+  - `send` + `recv` (like `read` & `write`) versus
+  - `call` and `reply_and_wait`
+
+---
+
+## Microkernel IPC (L4-style)
+
+```mermaid
+sequenceDiagram
+	autonumber
+	c->>kernel: send(msg)
+	kernel-->c: ret = send(msg)
+	c->>kernel: recv(...)
+	Note over kernel: swtch(s)
+	kernel-->s: recv(msg)
+	s->>kernel: send(msg')
+	Note over kernel: swtch(c)
+	kernel-->c: ret = recv(msg')
+```
+
+---
+
+## Microkernel IPC (L4-style)
+
+```mermaid
+sequenceDiagram
+	autonumber
+	c->>kernel: call(msg)
+	Note over kernel: swtch(s)
+	kernel-->s: msg = reply_and_wait(...)
+	s->>kernel: reply_and_wait(msg')
+	Note over kernel: swtch(c)
+	kernel-->c: msg' = call(msg)
+```
+
+---
+
+# Summary: Interfaces
+
+---
+
+```mermaid
+mindmap
+	root((Interfaces))
+		generality
+			VFS
+			CRUD
+			polymorphism
+		composition
+			thread safety/reentrancy
+			namespaces
+				fds
+				vfs
+					plan9
+					eiaf
+			separation of concerns/orthogonality
+		    mechanism/policy
+		virtualization
+		liveness/data placement
+			borrowing
+			ownership
+			copying
+		concurrency
+			blocking
+			per-client
+			events
+				event
+				level
+	    algebraic properties
+			commutativity
+			associativity
+			idempotency
+		aggregation
+			data
+			operation
+
+```
