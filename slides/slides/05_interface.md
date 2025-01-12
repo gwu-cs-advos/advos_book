@@ -50,7 +50,7 @@ Virtual File System API (VFS) and/or [9P](http://man.cat-v.org/plan_9/5/intro)
 
 ---
 
-# Function Composition
+# Abstraction Composition
 
 ---
 
@@ -270,6 +270,10 @@ UNIX commands:
 
 ---
 
+# Considerations for Composability
+
+---
+
 ## Namespaces and Composability
 
 If we have $N$ different namespaces, then interfaces speak different languages
@@ -372,17 +376,156 @@ tcp/2 1 Established connect
 - [Namespaces in Plan9](https://doc.cat-v.org/plan_9/4th_edition/papers/names)
 - [Networking in plan9](https://doc.cat-v.org/plan_9/4th_edition/papers/net/)
 - [Implementation and namespaces in plan9](https://doc.cat-v.org/plan_9/4th_edition/papers/9)
+
 ---
 
-## Separation of Concern/Orthogonality
+## Plan 9 EIAF
+
+What if any application can expose a VFS API to contribute to *full-system composability*?
+
+``` [1|2-5|6]
+$ echo "home https://faculty.cs.gwu.edu/gparmer/pubs.html" > /apps/firefox/newtab
+$ cat /apps/firefox/home/ul/li/span/contents | head -n 3
+Edge-RT: OS Support for Controlled Latency in the Multi-Tenant, Real-Time Edge
+SBIs: Application Access to Safe, Baremetal Interrupt Latencies
+The Thundering Herd: Amplifying Kernel Interference to Attack Response Times
+$ echo "<li>Gabriel Parmer, <span class="text-info">MY NEW PAPER</span></li>" >> /apps/firefox/home/ul/content
+```
+
+---
+
+## Implement App EIAF in Linux
+
+```mermaid
+block-beta
+	columns 2
+	block p0["app"] end
+	block p1["app"] end
+	vfs["VFS interface"]:2
+	fs["FS"]
+	pfs["ProcFS"]
+	sfs["SysFS"]
+	tfs["TmpFS"]
+	dfs["DevFS"]
+	afs(["AppFS??"])
+```
+
+---
+
+## Implement App EIAF in Plan 9
+
+<div class="multicolumn"><div>
+
+```mermaid
+block-beta
+	columns 2
+	block p0["app"] end
+	block p1["AppSrvFS"] end
+	vfs["VFS interface"]:2
+	fs["FS"]
+	pfs["ProcFS"]
+	sfs["SysFS"]
+	tfs["TmpFS"]
+	dfs["DevFS"]
+	space
+```
+
+</div><div>
+
+```mermaid
+flowchart TB
+
+subgraph _
+c["App"]
+end
+subgraph ___
+a["AppSrvFS"]
+end
+
+subgraph kernel
+vfs["VFS Interface"]
+path["Path Resolution"]
+9p["9P Protocol"]
+end
+
+c-->vfs
+vfs-->path
+9p-->path
+a-->9p
+```
+
+</div></div>
+
+---
+
+## Plan 9 Interactions
+
+```mermaid
+sequenceDiagram
+	autonumber
+    client->>VFS: open("/app/ff/...", ...)
+    VFS->>9p: path_to_9p(...)
+	AppSrvFS->>9p: read(...)
+    9p->>AppSrvFS: 9p_message = read(...)
+    AppSrvFS->>9p: write(..., 9p_reply_msg, ...)
+	9p->>VFS: file = path_to_9p(...)
+	VFS->>client: fd = open(...)
+```
+
+---
+
+## Benefits - Composability
+
+Want to add features to your browser?
+
+Chrome/Firefox:
+1. Hack on a >1M SLoC codebase
+2. Browser plugin model
+   - Javascript + 100s of APIs
+
+Plan 9 or Linux w/ FUSE:
+- User: command line
+- Extensions: programs w/ VFS calls
+
+---
+
+## Separation of Concerns/Orthogonality
+
+Different *functions or components* should
+- perform *non-overlapping changes* to the system, and/or
+- provide *non-overlapping abstractions*.
 
 > Do one thing well.
 > - Doug McIlroy
+
+*Why???*
 
 -v-
 
 - [Separation of concerns](https://en.wikipedia.org/wiki/Separation_of_concerns) (SoC)
 - [Orthogonality](http://www.catb.org/~esr/writings/taoup/html/ch04s02.html#orthogonality)
+
+---
+
+## Separation of Concerns/Orthogonality
+
+Why?
+
+1. Redundant code
+2. Complexity in interactions between implementations
+3. Stratification of clients across APIs
+4. *Decreased composability*
+
+---
+
+## Examples: Not Orthogonal
+
+| Abstraction | Implementations |
+|-------------|-----------------|
+| Linux IPC | signals, pipes, System V Shared Memory, mapped files, shared files, named pipes, UNIX domain sockets, TCP/UDP sockets, DBus, Binder|
+| File access | `mmap`, `read`, `readv`, `pread`, `fread`|
+| Processes | `clone`, `fork`, `vfork`, `posix_spawn`|
+| Event management | `poll`, `select`, `epoll`, `io_uring`, signals |
 
 ---
 
@@ -410,6 +553,38 @@ A perspective on dependencies
 
 ---
 
+## Separation of Mechanisms and Policy
+
+| Mechanism | Policy |
+|-----------|--------|
+| UNIX Syscalls | Shell |
+| Shell | Pipelines |
+| X-Windows | Chrome |
+| Atomic instructions | locks |
+| Interrupts | Premptive Scheduling |
+
+---
+
+## Mech/Policy: Semantic Gap/Leaky abstractions
+
+The *semantic gap* for an abstraction/policy can often be bypassed by instead using the mechanism of the underlying component.
+
+*Leaky abstractions* can be avoided by a component *not* providing functionality beyond what is natural for the abstraction - instead enabling clients to talk to the underlying mechanism.
+
+**But**...doing so often comes at the cost of composability.
+
+---
+
+## Powerful Interfaces and Components
+
+**Composability**: Combine mechanisms $\to$ powerful policies
+
+**Orthogonality**: Make interfaces easier to combine
+
+**Mechanism/Policy**: Intentionally design the dependencies
+
+---
+
 ## Virtualization
 
 Virtualizing an interface
@@ -423,6 +598,676 @@ Virtualizing a resource
 - CPU $\to$ thread
 - physical memory$\to$virtual memory
 - interrupt$\to$signal
+
+---
+
+## Virtualization
+
+Virtual resource namespace
+- Separate namespace for virtualized resources
+- Component providing virtualization: $m(r_v)\to r_p$
+
+Examples:
+- Virt Mem: page-tables virtualize phys mem
+- VMs:
+  - virt phys mem w/ extended page-tables
+  - virt cores: vCPUs
+- Containers: virt all namespaces
+  - FS: new `/` to FS
+
+---
+
+## Liveness and Data Placement in Interfaces
+
+*Liveness* - Who is in charge of freeing a resource?
+- who is the *owner* of the resource?
+- who *borrows* a resource during a call?
+
+*Data placement* - When data addresses are passed between components,
+- what names (addresses) are used,
+- who allocates the names, and
+- who has access to the names?
+
+---
+
+## Liveness/Data Placement in Interfaces
+
+Implicit in *every C interface*
+
+:one: Client allocates, server borrows
+```c []
+char *buf = malloc(BUFSZ);
+server_fn(buf, BUFSZ);
+free(buf);
+```
+Client determines data location.
+
+---
+
+## Liveness/Data Placement in Interfaces
+
+:two: Client allocates, passes ownership to server
+```c []
+char *buf = malloc(BUFSZ);
+server_fn(buf, BUFSZ);
+```
+Client determines data location.
+
+---
+
+## Liveness/Data Placement in Interfaces
+
+:three: Server allocates, passes ownership to client
+```c []
+char *buf;
+int sz;
+server_fn(&buf, &sz);
+free(buf);
+```
+Server determines data location.
+
+---
+
+```c [1,2|1,3-9]
+/* :one: Client allocates, provites data location, kernel borrows */
+ssize_t read(int fd, void *buf, size_t count);
+ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
+char *str = "hello world\n";
+ssize_t nwritten;
+struct iovec iov[1];
+iov[0].iov_base = str;
+iov[0].iov_len = strlen(str);
+nwritten = writev(STDOUT_FILENO, iov, 1);
+```
+
+---
+
+```c++ [2,5|3,5-14|11]
+/* :three: Server allocates, passes ownership to client */
+int dmtr::io_queue_api::pop(dmtr_qtoken_t &qtok_out, int qd);
+int dmtr::io_queue_api::poll(dmtr_qresult_t &qr_out, dmtr_qtoken_t qt);
+/* where ... */
+typedef uint64_t dmtr_qtoken_t;
+typedef struct dmtr_qresult {
+    enum dmtr_opcode qr_opcode;
+    int qr_qd;
+    dmtr_qtoken_t qr_qt;
+    union {
+        dmtr_sgarray_t sga;
+        dmtr_accept_result_t ares;
+    } qr_value;
+} dmtr_qresult_t;
+```
+
+-v-
+
+From the [demikernel](https://www.microsoft.com/en-us/research/project/demikernel/) [source](https://github.com/gwu-cs-advos/demikernel) and these examples from the [types](https://github.com/gwu-cs-advos/demikernel/blob/master/include/dmtr/types.h).
+
+---
+
+## Shared Memory Allocation
+
+:one:, :two:, and :three: across isolated components?
+
+---
+
+## Shared Memory Allocation
+
+[Shared memory w/ bitmap allocation](https://github.com/gwsystems/composite/blob/main/src/components/lib/shm_bm/doc.md) in [Composite](https://github.com/gwsystems/composite/)
+- slab allocator in shared memory
+- Memory object references that can be shared across memory virtual address spaces
+- namespace:
+  - `shm_bm_t` - the shared memory pool allocated from
+  - `shm_objid_t` - the object id within a specific pool
+
+---
+
+# Concurrency
+
+---
+
+## Concurrency in Implementations
+
+Component state relevant for $c_i$ can be updated by
+1. client requests from $c_i$,
+2. client requests from $c_j, i \neq j$, and/or
+3. interactions with lower-level (server) components.
+
+---
+
+## Concurrency in Implementations
+
+Mechanisms:
+- *Correctness* - locks, lock-free data-structures
+- *Thread interactions* - condition variables, semaphores
+
+---
+
+```c [1-34|13,26|11,18|13-16|26-29]
+mutex_t lock = MUTEX_INIT;
+condvar_t cv = CV_INIT;
+volatile int awaiting_value = 0;
+struct hash_table ht;
+
+value_t
+kv_get(key_t k)
+{
+	value_t v = VALUE_NULL;
+
+	mutex_lock(&lock);
+	while (1) {
+		v = ht_get(&ht, k);
+		if (v != VALUE_NULL) break;
+		awaiting_value = 1;
+		condvar_wait(&cv, &lock);
+	}
+	mutex_unlock(&lock);
+
+	return v;
+}
+
+kv_put(key_t k, value_t v)
+{
+	mutex_lock(&lock);
+	ht_put(&ht, k, v);
+	if (awaiting_value) {
+		awaiting_value = 0;
+		condvar_signal_broadcast(&cv);
+	}
+	mutex_unlock(&lock);
+
+	return v;
+}
+```
+
+---
+
+## Concurrency in Implementations
+
+Implementation must consider:
+- different clients don't want to trust each other - horizontal isolation
+- avoid cross-client blocking/progress?
+- avoid cross-client serialization/lock delays?
+- shared namespaces/shared resources makes this hard
+  - example with separate namespaces
+
+---
+
+```c [1-10|16|18-25]
+struct client_data {
+	mutex_t lock;
+	condvar_t cv;
+	volatile int awaiting_value;
+	struct hash_table ht;
+} clients[CLIENT_NUM];
+/*
+ * We're "cheating" here as we know we can
+ * access `clients` without a lock to simplify.
+ */
+
+value_t
+kv_get(key_t k)
+{
+	value_t v = VALUE_NULL;
+	struct client_data *c = clients[client_id()];
+
+	mutex_lock(&c->lock);
+	while (1) {
+		v = ht_get(&c->ht, k);
+		if (v != VALUE_NULL) break;
+		c->awaiting_value = 1;
+		condvar_wait(&c->cv, &c->lock);
+	}
+	mutex_unlock(&c->lock);
+
+	return v;
+}
+
+void
+kv_put(key_t k, value_t v)
+{
+	struct client_data *c = clients[client_id()];
+
+	mutex_lock(&c->lock);
+	ht_put(&c->ht, k, v);
+	if (c->awaiting_value) {
+		c->awaiting_value = 0;
+		condvar_signal_broadcast(&c->cv);
+	}
+	mutex_unlock(&c->lock);
+
+	return v;
+}
+```
+
+---
+
+## Blocking vs. Non-blocking
+
+Can a thread *block* when it invokes an interface in a function?
+1. Block on a lock?
+   So long as it is a lock with *progress guarantees*, we don't count this as "blocking".
+2. Can the thread block awaiting some more complicated event, potentially forever!
+
+---
+
+## Blocking vs. Non-blocking
+
+Blocking:
+- *requires* multi-threaded client code if it wants to efficiently work with multiple (blocking) resources.
+- Terse and simple if only working with a single resource.
+
+Non-blocking:
+- Returns immediately, even if operation cannot be performed yet.
+- Degenerates into active polling.
+
+What are the bad execution scenarios in the following?
+
+---
+
+```c [2-10|13-20|1-20]
+/* What are the bad execution scenarios in each of the following? */
+
+int
+blocking(res_t r1, res_t r2)
+{
+	while (1) {
+		blocking_operation(r1);
+		blocking_operation(r2);
+	}
+}
+
+
+int
+nonblocking(res_t r1, res_t r2)
+{
+	while (1) {
+		nonblocking_operation(r1);
+		nonblocking_operation(r2);
+	}
+}
+```
+
+---
+
+## Concurrency in Interfaces: Events
+
+- Is a function potentially *blocking*?
+- Does a thread block on a specific resource?
+- What **events** trigger the unblocking/waking on a resource?
+
+Generally:
+- What **events** does a component define?
+- What *triggers* those **events**?
+- How does how does one *await* (or block on) an **event**?
+
+---
+
+## Event Aggregation
+
+Concurrent server (`nginx`):
+- Want to await an event on *any* client's socket
+- Can't block on a single client's socket
+
+Primitives: `epoll`/`poll`/`select`
+- await an event on *at least one* of a *set* of events
+- return the *set of triggered events*
+
+---
+
+## KV Store + Events
+
+We want to
+1. associate an event with a resource (a `value`), and
+2. trigger the event when there is an *update* on the value.
+
+Challenge:
+- `kv_put` *transparently* creates a value
+- How do we know when/if we associate an event with it?
+- Orthogonality$\to$ `kv_add` & `kv_update`
+
+---
+
+```c [1-4|6-7|31-38|45,57|70-81|89-91]
+/* Client APIs */
+evt_t evt_create(void *data);
+void evt_delete(evt_t e);
+evt_t *evt_await(evt_t grp, evt_prop_t p);
+
+/* Server API */
+int evt_trigger(evt_t e, evt_prop_t p);
+
+/* Server component, extending the key-value store */
+value_t
+kv_get(key_t k)
+{
+	value_t v = VALUE_NULL;
+	struct client_data *c = clients[client_id()];
+
+	mutex_lock(&c->lock);
+	val = ht_get(&c->ht, k);
+	if (val) v = val->v;
+	mutex_unlock(&c->lock);
+
+	return v;
+}
+
+int
+kv_add(key_t k, value_t v, evt_t e)
+{
+	struct client_data *c = clients[client_id()];
+	struct val *val;
+
+	mutex_lock(&c->lock);
+	val = ht_get(&c->ht, k);
+	if (val) {
+		mutex_unlock(&c->lock);
+		return -1;
+	}
+	val = malloc(sizeof(struct val));
+	*val = (struct val) { .v = v, .e = e };
+	ht_put(&c->ht, k, val);
+	mutex_unlock(&c->lock);
+
+	return 0;
+}
+
+int
+kv_update(key_t k, value_t v)
+{
+	struct client_data *c = clients[client_id()];
+	struct val *val;
+	int ret = -1;
+
+	mutex_lock(&c->lock);
+	val = ht_get(&c->ht, k);
+	if (val) {
+		val->v = v;
+		ret = 0;
+		/* This is an update event on the value */
+		evt_trigger(val->e, EVT_UPDATE);
+	}
+	mutex_unlock(&c->lock);
+
+	return ret;
+}
+
+/* The client */
+int
+main(void)
+{
+	evt_t *e1, *e2;
+
+	e1 = evt_create(NULL);
+	e2 = evt_create(NULL);
+
+	kv_add(1, 1, e1);
+	kv_add(2, 2, e2);
+
+	thread_create(triggering_fn);
+
+	while (1) {
+		evt_await(e1);
+		printf("progress w/ %lx...", kv_get(1));
+	}
+}
+
+void
+triggering_fn(void)
+{
+	val_t to_the_moon = 0;
+
+	while (1) {
+		kv_update(2, to_the_moon++);
+	}
+}
+
+```
+
+Notes:
+Problem here is that we won't be notified of the event on the *other* resource.
+
+---
+
+
+```c [4|71-92]
+/* Client APIs */
+evt_t evt_create(void *data);
+void evt_delete(evt_t e);
+int evt_group(evt_t grp, evt_t e);
+evt_t *evt_await(evt_t grp, evt_prop_t p);
+
+/* Server API */
+int evt_trigger(evt_t e, evt_prop_t p);
+
+/* Server component, extending the key-value store */
+value_t
+kv_get(key_t k)
+{
+	value_t v = VALUE_NULL;
+	struct client_data *c = clients[client_id()];
+
+	mutex_lock(&c->lock);
+	val = ht_get(&c->ht, k);
+	if (val) v = val->v;
+	mutex_unlock(&c->lock);
+
+	return v;
+}
+
+int
+kv_add(key_t k, value_t v, evt_t e)
+{
+	struct client_data *c = clients[client_id()];
+	struct val *val;
+
+	mutex_lock(&c->lock);
+	val = ht_get(&c->ht, k);
+	if (val) {
+		mutex_unlock(&c->lock);
+		return -1;
+	}
+	val = malloc(sizeof(struct val));
+	*val = (struct val) { .v = v, .e = e };
+	ht_put(&c->ht, k, val);
+	mutex_unlock(&c->lock);
+
+	return 0;
+}
+
+int
+kv_update(key_t k, value_t v)
+{
+	struct client_data *c = clients[client_id()];
+	struct val *val;
+	int ret = -1;
+
+	mutex_lock(&c->lock);
+	val = ht_get(&c->ht, k);
+	if (val) {
+		val->v = v;
+		ret = 0;
+		/* This is an update event on the value */
+		evt_trigger(val->e, EVT_UPDATE);
+	}
+	mutex_unlock(&c->lock);
+
+	return ret;
+}
+
+/* The client */
+int
+main(void)
+{
+	evt_t *e1, *e2, *eg;
+
+	/*
+	 * When the events trigger, we're having them
+	 * return to us thekey associated with the event!
+	 */
+	e1 = evt_create((void *)1);
+	e2 = evt_create((void *)2);
+	eg = evt_create(NULL);
+
+	kv_add(1, 1, e1);
+	kv_add(2, 2, e2);
+
+	/* the group event tracks the set of other events. */
+	evt_group(eg, e1);
+	evt_group(eg, e2);
+
+	thread_create(triggering_fn);
+
+	while (1) {
+		/* return's the `void *` passed in `evt_create` */
+		key_t k = (key_t)evt_await(eg);
+		printf("progress w/ %lx...", kv_get(k));
+	}
+}
+
+void
+triggering_fn(void)
+{
+	val_t to_the_moon = 0;
+
+	while (1) {
+		kv_update(2, to_the_moon++);
+	}
+}
+
+
+
+```
+
+Notes:
+Now we're waiting on the *group or set of events*, not for a specific resource/event.
+
+---
+
+## Event Interfaces
+
+- *Event-triggered* - tell me when the resource status *changes* (i.e. a value is updated)
+- *Level-triggered* - tell me all of the resources in a specific *state*
+
+Level-triggered is *idempotent*, making it easier to write applications
+- `select` returns the set of all `fd`s in specific states.
+
+---
+
+## Level- vs. Event-Triggered
+
+Level-triggered (idempotent):
+```python []
+assert(select(evts) == select(evts))
+```
+
+Event-triggered:
+```python []
+assert(select(evts) != None)
+assert(select(evts) = None)
+```
+
+Notes:
+Event-triggered: once we read out an event, it won't be reported anymore!
+
+Recall, when a function isn't idempotent, we're expecting the client to track state.
+
+---
+
+## Level-Triggered Events
+
+```python []
+evts = [e0, e1, ...]
+
+# Event loop!
+while True:
+	e = select(evts).first()
+	handle_event(e)
+```
+
+Notes:
+If event triggered, we'd lose all events after the first for any given call to select
+
+---
+
+## Event-Triggered Events
+
+```python []
+evts = [e0, e1, ...]
+
+# Event loop!
+while True:
+	s = select(evts)
+	while s.len > 0:
+		e = pop(s)
+		handle_event(e)
+```
+
+Notes:
+Have to create our own data-structure to track events we've been told about because *we won't be told about them again* if their state doesn't change.
+
+---
+
+## Orthogonality: Events & Timers
+
+What if:
+- we want to block awaiting events,
+- or to wake after a span of time if no event happened?
+
+```c []
+int epoll_wait(int epfd, struct epoll_event *events,
+               int maxevents, int timeout);
+```
+
+`timeout` enables this *timed block*!
+
+-v-
+
+See the [thorough discussion](https://gwu-cs-advos.github.io/sysprog/#revisiting-ipc-with-multiple-clients) on event management and `poll`.
+
+---
+
+## Orthogonality: Events & Timers
+
+Downsides:
+- Complexity: Now everyone who uses `epoll_wait` must worry about `timeout` (even if they don't need it)
+- Not Orthogonal: We might want a complex pattern of timeouts, but an `int` doesn't get us there (periodic, real-time, exec_time, etc...)
+
+All users of `epoll_wait` must use a half-baked timeout API.
+- Timeout logic must *be baked into the event loop!!!*
+
+---
+
+## Orthogonality: Events & Timers
+
+Alternatively, separate events and timers:
+```c []
+int timerfd_create(int clockid, int flags);
+```
+More useful way to set time (periodic, based on execution time, etc...).
+
+Returns an `fd`, which we can add to the event fd!!!
+
+---
+
+```c []
+fd = timerfd_create(CLOCK_REALTIME, 0);
+struct itimerspec  now;
+clock_gettime(CLOCK_REALTIME, &now);
+struct itimerspec  new_value = (struct itimerspec) {
+	.it_value.tv_sec = now.tv_sec + atoi(argv[1]),
+    .it_value.tv_nsec = now.tv_nsec,
+};
+timerfd_settime(fd, TFD_TIMER_ABSTIME, &new_value, NULL);
+
+struct epoll_event evts[16];
+epoll_ctl(event_fd, EPOLL_CTL_ADD, fd, NULL);
+epoll_wait(event_fd, evts, 16, -1);
+```
+
+---
+
+# Implications of Design in Interfaces & Components
 
 ---
 
@@ -603,32 +1448,65 @@ Example:
 
 ## Data Aggregation: Batching Policies
 
-- Batch $N$:
-- Batch based on concurrency:
-- Time-bounded batching
+- Batch based on concurrency up to $N$ - pipes
+- Time-bounded batching - up to $N$ or $t$
 
 ---
 
 ## Data Aggregation: Examples
 
-- Buffered I/O
-- UNIX pipes
--
--
+- Buffered I/O - batch up to `\n`
+- DMA ring buffers - batch up to a fixed # of I/O req/resp
+- UNIX pipes - batch up till pipe buffer size
+
+---
+
+## Example: No Batching
+
+```mermaid
+sequenceDiagram
+    autonumber
+    P0->>kernel: write(...)
+    kernel->>P1: swtch(P1)
+    P1->>kernel: read(...)
+    P1->>kernel: write(...)
+    kernel->>P0: swtch(P0)
+    P0->>kernel: read(...)
+```
+
+---
+
+## Example: Batching
+
+```mermaid
+sequenceDiagram
+	autonumber
+    P0->>kernel: write(...)
+	P0->>kernel: write(...)
+    kernel->>P1: swtch(P1)
+	P1->>kernel: read(...) + write(...)
+	P1->>kernel: read(...) + write(...)
+	kernel->>P0: swtch(P0)
+	P0->>kernel: read(...)
+	P0->>kernel: read(...)
+```
 
 ---
 
 ## Action Aggregation
 
+Find common sequences of execution, and move them into server components.
+
 ---
 
 ## Action Aggregation: Examples
 
----
-
-## Combining Optimizations
-
-[Zygote](https://source.android.com/docs/core/runtime/zygote) processes in Android
-- cache the output of
-- aggregated actions
-- to quickly create pre-initialized app startup
+- Stored procedures in DBs
+- `ebpf` programs in the Linux kernel
+- graphql to specify complex, nested queries
+- Microkernel IPC
+  - `send` + `recv` (like `read` & `write`) versus
+  - `call` and `reply_and_wait`
+- [Zygote](https://source.android.com/docs/core/runtime/zygote) processes in Android
+  - aggregated initialization actions
+  - to quickly create pre-initialized app startup
