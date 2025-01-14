@@ -1,5 +1,6 @@
 index:
   title: Advanced OS Slides
+  theme: theme.css
 slides:
   theme: theme.css
   separator_notes: "^Notes?:"
