@@ -51,6 +51,7 @@ title: Advanced Operating Systems
   - Scheduling
   - Parallelism and multi-core
   - Page-tables & memory virtualization/isolation
+  - Some UNIX familiarity
 
 ---
 
@@ -62,11 +63,11 @@ Systems:
 
 Software:
 
-- UNIX & beyond: `xv6`, `plan9`
+- UNIX & beyond: `xv6`, `busybox`, `plan9`
 - Performance & concurrency: `demikernel`, `go`, `libuv`
 - Microkernels: `nova`, **`composite`**
 - Specialization: `unikraft`, `composite`
-- Separation kernel: `nickel`
+- Separation kernel: `nickel`, `komodo`
 
 ---
 
@@ -80,7 +81,7 @@ Software:
 | Isolation - horizontal vs. vertical, design principles | `nova`, `composite`       |
 | Concurrency                 | `go`, `libuv`, `demikernel` |
 | Parallelism            | `go`, `libuv`, `nova`       |
-| Specialization | `composite`, `unikraft`, firecracker, FreeRTOS |
+| Specialization | `composite`, `unikraft` |
 | Security | `nickel`, `composite` |
 | Android | android, fuchsia |
 | Resource management | cgroups |
@@ -159,10 +160,10 @@ mindmap
 | Day                   | Class             | Course Work               |
 |-----------------------------|------------------------|-------------------------|
 | Thurs                    | *Gabe*: concepts/systems | -             |
-| Thurs $\to$ Tues: | -             | *You*: understand code, do design |
-| Tues                     | *You*: discuss studied system in group, All: discuss together | -              |
+| Tues $\to$ Tues: | -             | *You*: understand code/design, ~1-1.5hr |
+| Tues                     | *You*: discuss studied system in group, All: discuss together, discuss next system | -              |
 
-:two:: Second half of class - project applying concepts into a system.
+:two:: Implement systems in 1. a UNIX service, and 2. a new design in an existing system.
 
 ---
 
@@ -170,12 +171,33 @@ mindmap
 
 Tests? Graded homeworks? :-1: :poop:
 
-Incentive management - peer evaluation:
+Incentive management:
 
-- Peer evaluation
-- If you aren't prepared for class, your group will suffer.
-- You'll get out of this class what you put into it :shrug:
+- In class discussion of system design - Peer evaluation. If you aren't prepared for class, your group will suffer.
+- System Design Review & Participation - Notes and questions about system + class participation.
+- Coding - design notes, and presentation.
 
-Last week of class: Quick demos
+You'll get out of this class what you put into it :shrug:
 
 > Self motivation is required to get **anything** from this class
+
+---
+
+## Working Together and Academic Honesty
+
+- You can work in teams for any aspect of the class.
+- You must fill in your own participation reflecting on code.
+- You can use the Internet and/or LLMs.
+
+Attribution is *required*.
+
+---
+
+## Attribution
+
+If you use code or gain significant ideas from elsewhere, you *must* cite that source.
+- Use code from the Internet? Add a URL to the source.
+- Use an LLM to gen code? Identify which LLM and the gist of the queries.
+- Work with someone else? List them in the README.md or in a comment.
+
+No attribution? `0` credit.
