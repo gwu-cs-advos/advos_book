@@ -21,14 +21,23 @@ title: Interface Design
 
 ---
 
+# Polymorphism - Client Utility
+
+---
+
 ## Generality vs. Specificity
 
-General, thin interfaces can be polymorphic
+General, thin interfaces for deep interfaces can be polymorphic
+- Hide more details $\to$ more potential implementations
 - Multiple implementations
 - Component dependencies are on *interfaces*
 
+---
+
+## Generality vs. Specificity
+
 Techniques
-- Identify resources with (hierarchical) strings
+- Identify (name) resources with (hierarchical) strings
 - Decouple resource resolution from access (path vs. fd)
 - Operations: access/modify/delete/create resource
 
@@ -62,6 +71,8 @@ Given functions $f$ and $g$, and arguments $a$ and $a'$:
 - Is that expected behavior maintained, when executed in sequence?
 
 $f(a); g(a')$?
+
+$f(a, g(a'))$?
 
 ---
 
@@ -190,7 +201,7 @@ Locks are not composable, and transactional memory was proposed as a solution. [
 
 ---
 
-## Composability vs. "The Right Thing"
+## Composability is Only *One* Optimization
 
 Recursive locks have an interface that self-composes:
 - Can you take a taken lock?
@@ -240,12 +251,14 @@ Notes:
 
 ## Considerations for Composability
 
+Thread safety example:
+- `getenv`/`strtok` are not thread safe
+
 Reentrancy problem examples:
 - What if we call `malloc` in a signal handler?
 - Call buffered I/O (e.g. `printf`)?
 
 If your interface is not thread safe and reentrant, you are *not* composable with threads nor signals.
-- I'd argue to *not use signals* and "give up" on that game (there are alternatives).
 
 Notes:
 `malloc` requires locks, so if we get a signal handler while holding one of these locks, then call `malloc`, we'll take the lock a second time and, more importantly, try and access data-structures currently in a critical section.
@@ -263,10 +276,12 @@ Or in Linux, use `signalfd`.
 ## Goal: Composability
 
 Simple systems, complex behavior:
-- Independent functions, composed to create complex behavior
+1. Independent functions
+2. Polymorphic interface
+3. Composed to create complex behavior
 
 UNIX commands:
-- Programs with text-based input/output, composed with `|`
+- Programs w/ text input/output, composed with `|`
 - `$ cat classlist | grep "gwu.edu" | wc -l` - how many students in class?
 
 ---
@@ -275,9 +290,19 @@ UNIX commands:
 
 ---
 
-## Namespaces and Composability
+## **Namespaces** and Composability
 
-If we have $N$ different namespaces, then interfaces speak different languages
+Namespaces: the way we identify, or name, a resource
+- pointers
+- `fd`s
+- strings (keys)
+- FS paths
+
+---
+
+## **Namespaces** and Composability
+
+If interfaces use different namespaces, they speak *different languages*
 - It is harder for functions to be composable
 - They don't have the ability to consistently name resources
 
@@ -294,7 +319,9 @@ Linux unifies interfaces around `fd`s:
 - [`userfaultfd`](https://man7.org/linux/man-pages/man2/userfaultfd.2.html)
 - [`setns`](https://man7.org/linux/man-pages/man2/setns.2.html) to update the namespaces
 
-Why do we want all of these that used to be different interfaces?
+Compose with all functions that operation on `fd`s.
+
+These used to be different functions w/ different namespace. Why did we unify them?
 
 Notes:
 

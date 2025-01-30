@@ -77,9 +77,41 @@ sched_setparam(getpid(), &sp);
 
 ---
 
+Interface function specification:
+
+>  sched_setparam()  sets  the  scheduling  parameters associated with the scheduling policy for the thread whose thread ID is specified  in  pid. If pid is zero, then the parameters of the calling thread are set.  The interpretation  of the argument param depends on the scheduling policy of the thread identified by pid. ...
+
+Resource behavior specification:
+
+> ...See sched(7) for a description of the scheduling policies supported under Linux.
+
+---
+
+# What Makes a Good Abstraction?
+
+---
+
 ## Shallow vs. Deep Components
 
-How **wide** is the interface relative to the implementation?
+:one: How **wide** is the interface?
+
+:two: How much detail does the component **hide**?
+
+---
+
+## Shallow vs. Deep Components
+
+**Deep component** = higher value of:
+
+$$\frac{\textsf{hidden implementation details}}{\textsf{interface width}}$$
+
+Measure of *information hiding* $\to$ removing complexity from clients.
+
+---
+
+## Shallow vs. Deep Components
+
+How **wide** is the interface *relative to* the hidden details?
 
 - Narrow interface w/ significant implementation
   - Hides significant complexity
@@ -117,7 +149,23 @@ How **wide** is the interface relative to the implementation?
 
 ---
 
-## Depth of Abstraction
+## Deep Component Example
+
+Unix Virtual File System Abstraction
+- remarkably small API for a ton of functionality
+- see the [xv6](https://github.com/gwu-cs-advos/xv6-riscv) source
+
+```c []
+int open(const char *pathname, int flags, mode_t mode);
+off_t lseek(int fd, off_t offset, int whence);
+ssize_t write(int fd, const void buf[], size_t count);
+ssize_t read(int fd, void buf[], size_t count);
+int close(int fd);
+```
+
+---
+
+## Shallow Abstraction Example
 
 <div class="center">
 
@@ -140,7 +188,7 @@ Disk driver:
 ---
 
 
-```c [1-3|5-14|11-13]
+```c [1-3|5-14]
 /* Block Abstraction */
 int block_read(int offset, char *block);
 int block_write(int offset, char *data);
@@ -164,7 +212,7 @@ Notes:
 
 ---
 
-## Abstraction Width
+## Abstraction Width $\neq$ Depth
 
 The *width* of the `block_*` abstraction is very small.
 - But provides little *abstraction*
@@ -176,7 +224,7 @@ Examples of similar abstractions:
 
 ---
 
-## Abstraction Width
+## Abstraction Width $\neq$ Depth
 
 Interface to DBs?
 - SQLite: `sqlite_exec(db_conn, "sql command...", ...)`
@@ -187,29 +235,7 @@ Interface width $\neq$ number of functions <!-- .element: class="fragment" data-
 
 ---
 
-## Shallow vs. Deep Components
-
-Be wary of nuance in how you think about this.
-
----
-
-## Deep Components
-
-Unix Virtual File System Abstraction
-- remarkably small API for a ton of functionality
-- see the [xv6](https://github.com/gwu-cs-advos/xv6-riscv) source
-
-```c []
-int open(const char *pathname, int flags, mode_t mode);
-off_t lseek(int fd, off_t offset, int whence);
-ssize_t write(int fd, const void buf[], size_t count);
-ssize_t read(int fd, void buf[], size_t count);
-int close(int fd);
-```
-
----
-
-## Deep Components - Semantic Gap
+## Deep Components: Danger of Semantic Gap
 
 Risk of deep components: The abstraction makes some actions impossible
 - What if we want two files to share some blocks?
@@ -224,12 +250,22 @@ Semantic gap - If a task requires capabilities hidden and made inaccessible by t
 
 `mmap` lets you directly access a file using virtual addresses and load/store.
 
-Many DB systems have been tempted to use `mmap` for fast access to DB files.
-- But what if the system runs out of memory?
+Many DB systems have used `mmap` for fast access to DB files.
+- Entire DB in memory, the system *will* run out of memory
 - Kernel "paging" policies move memory$\to$disk
 - Later, suffer page-fault and disk latency to get data
 
 [DB semantic gap](https://db.cs.cmu.edu/papers/2022/cidr2022-p13-crotty.pdf): DB wants to manage what in the DB is in memory, `mmap` transparently removes that control.
+
+---
+
+## Semantic Gap Example: Networking
+
+I want to talk to the Internet.
+
+VFS doesn't have that thing.
+
+- `open("/net/https://lobste.rs", ...)`?
 
 ---
 
@@ -238,21 +274,23 @@ Many DB systems have been tempted to use `mmap` for fast access to DB files.
 `socket`s augment the VFS API to enable network communication
 
 - Streaming enables TCP/IP, without needing to know the details
-- But one can also use UDP if they require more per-packet control
+- Can also use UDP if they require more per-packet control
 
----
+<!-- --- -->
 
-## Shallow Components
+<!-- ## Shallow Components -->
 
-Expose *internal implementation details* in the interface
+<!-- Often expose *internal implementation details* in the interface -->
 
-- Example: an interface close to that of a data-structure - linked list API, `block_*` interface w/ simple implementation
-- *Couples component and client logic*
-  - Defeats point of abstraction!
-  - Complicates component updates
-  - Moves complexity to client
+<!-- - Examples: -->
+<!--   - an interface close to that of a data-structure - linked list API -->
+<!--   - `block_*` interface w/ simple implementation -->
+<!-- - *Couples component and client logic* -->
+<!--   - Complicates component updates -->
+<!--   - Moves complexity to client -->
+<!--   - Defeats point of abstraction! -->
 
-Leaky abstractions - an abstraction that reveals or requires client to have knowledge of implementation details.  <!-- .element: class="fragment" data-fragment-index="1" -->
+<!-- Leaky abstractions - an abstraction that reveals or requires client to have knowledge of implementation details.  <\!-- .element: class="fragment" data-fragment-index="1" -\-> -->
 
 ---
 
@@ -270,18 +308,21 @@ Complexity is passed to the client
 
 ---
 
-## Extending Interfaces w/ Leaks
+## Default Design Goal
 
-Default design goal:
-
-1. Deep component, narrow interface
+1. Deep component (narrow interface, hide details)
 2. Optimized interface for *common case* usage
    - For example, avoid whatever led to Java's `FileInputStream`, `BufferedInputStream`, I/O mess
-3. Semantic gap? $\to$ [extend interface](https://ieeexplore.ieee.org/document/183036) for more control where necessary
 
 ---
 
-## Deep Component with Shallow Extension
+## Extending Interfaces w/ Leaks
+
+Deep component has a semantic gap?<br> $\to$ [extend interface](https://ieeexplore.ieee.org/document/183036) for more control where necessary<br> $\to$ often creates a leaky abstraction
+
+---
+
+## Deep Component with a Leaky Extension
 
 ```c []
 int ioctl(int fd, unsigned long op, ...);
@@ -290,11 +331,11 @@ int ioctl(int fd, unsigned long op, ...);
 > Arguments,  returns, and semantics of ioctl() vary according to the device driver in question (the call is used as a catch-all for operations that don't cleanly fit the UNIX stream I/O model). - Manual page for `ioctl`
 
 - Vague, explicitly "cuts through" the abstraction
-- Specific, by design, and not general
+- Specific, not general, only applicable to specific "files"
 
 ---
 
-## File Access Shallow Extension
+## File Access Leaky Extension
 
 ```c []
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
@@ -308,7 +349,7 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 
 ---
 
-## Interface Extension Examples
+## Leaky Interface Extension Examples
 
 Bridge the semantic gap, acknowledging leaky abstraction:
 

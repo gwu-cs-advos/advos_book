@@ -285,10 +285,10 @@ block-beta
 :+1: Strong organization of components, constrain complexity
 
 :-1: Downsides
-- Multiple applications might require different abstractions
+- Different applications might require different abstractions
 - Little isolation between applications/users
-- Unrelated abstractions don't fit into levels
-  - Which should be in higher/lower layers: Networking or Filesystem
+- *Unrelated abstractions* don't fit into levels
+  - Which should be in higher/lower layers: *networking or filesystem*?
 
 :question: What other options do we have?
 
@@ -505,16 +505,16 @@ Notes:
 
 ```mermaid
 flowchart TB
-	a["DHCP\nserver :two:"]
-	b["VoIP\nserver"]
+	a["DHCP<br>server :two:"]
+	b["VoIP<br>server"]
 	e["IP + UDP :two:"]
 	i["NIC Device Driver :one: :two: :three:"]
 	k["Router :three:"]
-	c["HTTP\nserver :one:"]
-	d["ssh\nserver"]
+	c["HTTP<br>server :one:"]
+	d["ssh<br>server"]
 	f["TCP :one:"]
 	h["IP + UDP :one:"]
-	g["Streaming\nmedia"]
+	g["Streaming<br>media"]
    	a --> e
 	b --> e
 	c --> f
@@ -536,23 +536,22 @@ flowchart TB
   - *deduplication* avoids memory copies
   - fast inter-VM communication
 - What "layer" of hierarchy is right for an app?
-  - Router: relatively direct access to NIC
-  - HTTP server: desires significant
-- Components with multiple "children" must provide resource isolation
-- Same layering downsides - Unrelated abstractions don't fit into levels (net vs. FS)
+  - Router: direct(ish) access to NIC
+  - HTTP server: networking stack
+- Components with multiple "children" must provide *resource isolation*
+- Same layering downsides - unrelated abstractions don't fit into levels (net vs. FS)
 
 ---
 
 ## Hierarchy Trade-offs
 
 | Layers | Hierarchy | Issue |
-|--------------------|--------------------|---------------------------------------------------|
-| :white_check_mark: | :white_check_mark: | Constrain complexity       |
-| :white_check_mark: | :warning:           | Easy resource sharing (across subtrees)           |
-| :white_check_mark: | :warning:           | No resource isolation       |
+|--------------------|--------------------|----------------------|
+| :white_check_mark: | :white_check_mark: | Constrain complexity  |
+| :white_check_mark: | :warning:           | Easy resource sharing (across subtrees)  |
 | :x:           | :white_check_mark: | Application (subtree) isolation         |
-| :x:           | :white_check_mark: | Appllication (subtree) abstraction specialization |
-| :x:           | :x:           | Avoid strict ordering of abstractions             |
+| :x:           | :white_check_mark: | Application (subtree) abstraction specialization |
+| :x:           | :x:           | Flexible ordering of abstractions     |
 
 ---
 
@@ -580,7 +579,7 @@ B[\"Interface B"/]
 C[\"Interface C"/]
 D[/"Interface D"\]
 E[/"Interface E"\]
-F(["\nComponent\nImplementation\n\n"])
+F(["<br>Component<br>Implementation<br><br>"])
 
 A -.-> F
 B -.-> F
@@ -602,12 +601,12 @@ flowchart TB
 
 A[\"Interface A"/]
 D[/"Interface D"\]
-F(["\nComponent 0\nImplementation\n\n"])
+F(["<br>Component 0<br>Implementation<br><br>"])
 E[\"Interface D"/]
-G(["\nComponent 1\nImplementation\n\n"])
+G(["<br>Component 1<br>Implementation<br><br>"])
 
-H(["\nComponent 0\nImplementation\n\n"])
-I(["\nComponent 1\nImplementation\n\n"])
+H(["<br>Component 0<br>Implementation<br><br>"])
+I(["<br>Component 1<br>Implementation<br><br>"])
 
 
 A -.-> F
@@ -630,13 +629,13 @@ H --> I
 ```mermaid
 flowchart TB
 
-H(["\nNet\nstack\n\n"])
-I(["\nNIC device\ndriver\n\n"])
-A(["\nFilesystem\n\n"])
-B(["\nSSD\ndriver\n\n"])
-C(["\nHTTP\nwebserver\n\n"])
-D(["\nRouting\n\n"])
-E(["\nShared\nmemory\n\n"])
+H(["<br>Net<br>stack<br><br>"])
+I(["<br>NIC device<br>driver<br><br>"])
+A(["<br>Filesystem<br><br>"])
+B(["<br>SSD<br>driver<br><br>"])
+C(["<br>HTTP<br>webserver<br><br>"])
+D(["<br>Routing<br><br>"])
+E(["<br>Shared<br>memory<br><br>"])
 
 H --> I
 C-->H
