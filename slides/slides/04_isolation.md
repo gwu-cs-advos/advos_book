@@ -120,14 +120,14 @@ Component $c_i$ *must trust* components it depends ($c_j$) on to provide proper 
 ```mermaid
 flowchart TB
 
-J(["\nNTP\nclient :two:\n\n"])
-H(["\nNet\nstack :two:\n\n"])
-I(["\nNIC device\ndriver :one: :two:\n\n"])
-A(["\nFilesystem\n\n"])
-B(["\nSSD\ndriver\n\n"])
-C(["\nHTTP\nwebserver\n\n"])
-D(["\nRouting :one:\n\n"])
-E(["\nShared\nmemory :one:\n\n"])
+J(["<br>NTP<br>client :two:<br><br>"])
+H(["<br>Net<br>stack :two:<br><br>"])
+I(["<br>NIC device<br>driver :one: :two:<br><br>"])
+A(["<br>Filesystem<br><br>"])
+B(["<br>SSD<br>driver<br><br>"])
+C(["<br>HTTP<br>webserver<br><br>"])
+D(["<br>Routing :one:<br><br>"])
+E(["<br>Shared<br>memory :one:<br><br>"])
 
 J-->H
 H-->I
@@ -156,14 +156,14 @@ Failure in the *Filesystem*?
 ```mermaid
 flowchart TB
 
-J(["\nNTP\nclient :two:\n\n"])
-H(["\nNet\nstack :two:\n\n"])
-I(["\nNIC device\ndriver :one: :two:\n\n"])
-A(["\nFilesystem :boom:\n\n"])
-B(["\nSSD\ndriver\n\n"])
-C(["\nHTTP\nwebserver\n\n"])
-D(["\nRouting :one:\n\n"])
-E(["\nShared\nmemory :one:\n\n"])
+J(["<br>NTP<br>client :two:<br><br>"])
+H(["<br>Net<br>stack :two:<br><br>"])
+I(["<br>NIC device<br>driver :one: :two:<br><br>"])
+A(["<br>Filesystem :boom:<br><br>"])
+B(["<br>SSD<br>driver<br><br>"])
+C(["<br>HTTP<br>webserver<br><br>"])
+D(["<br>Routing :one:<br><br>"])
+E(["<br>Shared<br>memory :one:<br><br>"])
 
 J-->H
 H-->I
@@ -219,10 +219,11 @@ block-beta
 
 ## Trust is Viral
 
-- $c_i$ functionally depends on $d_i = \\{c_j, \ldots\\}$
+- $c_i$ can functionally communication with $f_i = \\{ c_j, \ldots\\}$
+- $c_i$ functionally depends on $d_i = f_i \cup \\{d_j | d_j \in f_i\\}$
 - $c_i$ has access to resources $r_i$ (memory, files, etc...)
 - $c_i$ must trust $t_i = \\{c_j,\ldots\\}$
-- $t_i = t_i \cup \\{c_k | r_j \cap r_k \neq \varnothing, c_j \in t_i + c_i\\}$
+- $t_i = d_i \cup \\{c_k | r_j \cap r_k \neq \varnothing, c_j \in t_i\\}$
 
 ---
 
@@ -484,7 +485,7 @@ end
 subgraph __
 b["<i>c<sub>b</sub></i>"]
 end
-subgraph ___
+subgraph .
 c["<i>c<sub>k</sub></i>"]
 end
 
@@ -498,7 +499,7 @@ Implied relations
 - $c_k \in t_a$, $c_a \not\in t_k$
 - $c_k \in t_b$, $c_b \not\in t_k$
 
-$\to c_a \not\in c_b \wedge c_b \not\in c_a$
+$\to c_a \not\in t_b \wedge c_b \not\in t_a$
 
 Implications:
 - $c_k$ must separate resources accessed for $c_a$ and $c_b$
@@ -604,21 +605,52 @@ p21-->r21
 ## Isolation: Naming w/ Pointers
 
 ```c []
-/* pthread pointer to struct, contains integer */
-int pthread_create(pthread_t *restrict thread, const pthread_attr_t *restrict attr, void *(*start_routine)(void *), void *restrict arg);
 /* pid_t = int */
 pid_t fork(void);
+/* pthread pointer to struct, contains integer */
+int pthread_create(pthread_t *restrict thread, const pthread_attr_t *restrict attr, void *(*start_routine)(void *), void *restrict arg);
 /* generalization of both, retval = identifier*/
 int clone(int (*fn)(void *), void *stack, int flags, void *arg, ...);
 ```
 
-- [`struct pthread`](https://git.musl-libc.org/cgit/musl/tree/src/internal/pthread_impl.h#n18) identified by pointer, contains integers to pass to the kernel.
 - `fork` identifies process by integer
+- [`struct pthread`](https://git.musl-libc.org/cgit/musl/tree/src/internal/pthread_impl.h#n18) identified by pointer, contains integers to pass to the kernel.
 - `clone` is called by both, returns resource name as id
 
 ---
 
+```c [1,18]
+struct pthread {
+	/* Part 1 -- these fields may be external or
+	 * internal (accessed via asm) ABI. Do not change. */
+	struct pthread *self;
+#ifndef TLS_ABOVE_TP
+	uintptr_t *dtv;
+#endif
+	struct pthread *prev, *next; /* non-ABI */
+	uintptr_t sysinfo;
+#ifndef TLS_ABOVE_TP
+#ifdef CANARY_PAD
+	uintptr_t canary_pad;
+#endif
+	uintptr_t canary;
+#endif
+
+	/* Part 2 -- implementation details, non-ABI. */
+	int tid;
+	int errno_val;
+	volatile int detach_state;
+	/* ... */
+}
+```
+
+---
+
+<div class="multicolumn"><div>
+
 ## Isolation: Naming w/ Pointers
+
+</div><div>
 
 ```mermaid
 flowchart TB
@@ -650,6 +682,8 @@ d0-->r0
 d1-->r1
 ```
 
+</div></div>
+
 ---
 
 ## Isolation: Naming w/ Pointers
@@ -670,6 +704,7 @@ long syscall(SYS_futex, uint32_t *uaddr, int futex_op, uint32_t val, const struc
 
 - kernel must translate (using a HT) from *pointer* into *kernel resource* - why not simply dereference?
 - A *exceptional/rare* API
+  - *DON'T DO THIS*
 
 ---
 
@@ -775,7 +810,7 @@ argfd(int n, int *pfd, struct file **pf)
 
 ---
 
-```c [4-20|9,15|40-46]
+```c [4-20|9,15|27,28,29,40-46]
 /* From Linux */
 
 /* include/linux/fdtable.h */
@@ -1299,7 +1334,7 @@ flowchart TB
 subgraph _
 a["client 0"]
 end
-subgraph ___
+subgraph .
 f["client 1"]
 end
 
@@ -1329,7 +1364,7 @@ flowchart TB
 subgraph _
 a["client 0"]
 end
-subgraph ___
+subgraph .
 f["client 1"]
 end
 
@@ -1365,7 +1400,7 @@ flowchart TB
 subgraph _
 a["client 0"]
 end
-subgraph ___
+subgraph .
 f["client 1"]
 end
 
@@ -1403,7 +1438,7 @@ flowchart TB
 subgraph _
 a["client 0"]
 end
-subgraph ___
+subgraph .
 f["client 1"]
 end
 
