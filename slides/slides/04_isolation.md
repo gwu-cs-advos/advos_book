@@ -80,7 +80,8 @@ What happens if
 <div>
 
 Component $c_i$ *must trust* components it depends ($c_j$) on to provide proper service.
-- Failure in $c_j$?
+- Applications: $a$ & $c$
+- Failure in $e$? $i$?
 
 </div><div>
 
@@ -113,7 +114,7 @@ flowchart TB
 <div>
 
 Component $c_i$ *must trust* components it depends ($c_j$) on to provide proper service.
-- Failure in $c_j$?
+- Failure in *Net stack*? *Filesystem*? *NIC*?
 
 </div><div>
 
@@ -220,10 +221,10 @@ block-beta
 ## Trust is Viral
 
 - $c_i$ can functionally communication with $f_i = \\{ c_j, \ldots\\}$
-- $c_i$ functionally depends on $d_i = f_i \cup \\{d_j | d_j \in f_i\\}$
+- $c_i$ functionally depends on $d_i = f_i \cup \\{d_j | c_j \in f_i\\}$
 - $c_i$ has access to resources $r_i$ (memory, files, etc...)
 - $c_i$ must trust $t_i = \\{c_j,\ldots\\}$
-- $t_i = d_i \cup \\{c_k | r_j \cap r_k \neq \varnothing, c_j \in t_i\\}$
+- $t_i = \\{c_i\\} \cup d_i \cup \\{c_k | r_j \cap r_k \neq \varnothing, c_j \in t_i \\}$
 
 ---
 
@@ -306,6 +307,8 @@ block-beta
 ---
 
 ## Isolation
+
+Isolation restricts $r_i$, a component's access to resources
 
 Isolation matters when we must understand
 - reliability properties
@@ -508,17 +511,17 @@ Implications:
 
 ---
 
-## Mitigating Trust
+<!-- ## Mitigating Trust -->
 
-What if we have a dependency, but want to be tolerant to faults in it?
+<!-- What if we have a dependency, but want to be tolerant to faults in it? -->
 
-> Imagine: we don't want to trust
-> - your DB in a tiered web service, or
-> - the Linux kernel?
+<!-- > Imagine: we don't want to trust -->
+<!-- > - your DB in a tiered web service, or -->
+<!-- > - the Linux kernel? -->
 
-How can we do this?
+<!-- How can we do this? -->
 
----
+<!-- --- -->
 
 ## Isolation: Resource Abstractions
 
@@ -1498,6 +1501,22 @@ What have we done?
 Logical conclusion:
 - Android
 - `systemd`
+
+---
+
+```mermaid
+quadrantChart
+	title Isolation Mechanisms
+	x-axis SW --> HW
+	y-axis Horizontal Isol. --> Vertical Isol.
+	Dual-mode: [0.9, 0.9]
+	Page-tables: [0.7, 0.2]
+	MPK: [0.65, 0.8]
+	HW-Virt-bypass: [0.9, 0.1]
+	HW-Virt-VMM: [0.5, 0.5]
+	Software Sandboxing - Wasm: [0.2, 0.75]
+	Type-safe Languages: [0.15, 0.9]
+```
 
 ---
 
